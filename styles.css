@@ -377,7 +377,7 @@ body.locked { overflow: hidden; }
 .lock-eye:active { transform: translateY(-50%) scale(.92); }
 .lock-go { width: 100%; }
 .lock-error { color: #C1596B; font-size: 12.5px; margin: 10px 0 0; line-height: 1.4; }
-.lock-note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+.lock-note { color: var(--muted); font-size: 12px; margin: 10px 0 0; white-space: pre-line; line-height: 1.5; }
 .lock-foot { margin: 16px 0 0; font-size: 11.5px; color: var(--muted); letter-spacing: .2px; }
 
 .lock-setting {
