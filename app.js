@@ -1047,7 +1047,7 @@ function bindEvents() {
   $('resetDevice').addEventListener('click', () => {
     if (!confirm('이 기기에 저장된 기록과 선택한 사용자를 지울까요? (가족 공용 기록은 그대로 남아요)')) return;
     [LS.state, LS.me, LS.city, LS.city + '_coords', LS.bed, LS.bedTime, LS.bedLast, LS.timer, LS.room].forEach((k) => store.del(k));
-    location.reload();
+    location.replace(location.pathname);   // 기본 방 코드로 돌아갑니다
   });
 
   document.addEventListener('visibilitychange', () => {
