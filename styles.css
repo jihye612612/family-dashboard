@@ -250,6 +250,7 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 .msg.mine { flex-direction: row-reverse; }
 .msg.mine .msg-body { text-align: right; }
 .msg.mine .bubble { background: #F1FBEA; border-color: #D3EBC8; border-radius: 16px 16px 4px 16px; text-align: left; }
+.msg.mine .bubble.sticker, .bubble.sticker { background: transparent; border: 0; box-shadow: none; text-align: center; }
 .msg.mine .msg-name { text-align: right; margin-right: 2px; }
 .msg.mine .msg-foot { justify-content: flex-end; }
 .stickers { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 8px; }
