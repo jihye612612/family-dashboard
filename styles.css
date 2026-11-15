@@ -342,3 +342,5 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+[hidden] { display: none !important; }
