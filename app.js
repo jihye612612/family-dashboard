@@ -1134,7 +1134,7 @@ function showLock(message) {
   const eye = $('lockEye');
   if (eye) { eye.textContent = '👁️'; eye.setAttribute('aria-label', '비밀번호 보기'); }
   const note = $('lockNote');
-  if (note) note.textContent = message || '가족 모두 같은 비밀번호를 넣아야 함께 보여요\n한 번 넣으면 이 기기는 기억해요 💛';
+  if (note) note.textContent = message || '가족 모두 같은 비밀번호를 넣어야 함께 보여요\n한 번 넣으면 이 기기는 기억해요 💛';
   const err = $('lockError');
   if (err) { err.hidden = true; err.textContent = ''; }
   setTimeout(() => { try { input.focus(); } catch (e) {} }, 80);
