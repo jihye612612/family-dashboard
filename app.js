@@ -1092,6 +1092,12 @@ function closeSheet() { $('settingsSheet').hidden = true; }
 function boot() {
   bindEvents();
 
+  // 주소에 ?room=... 이 있으면 그 방을 사용 (가족 방은 기본값 그대로)
+  try {
+    const qroom = new URLSearchParams(location.search).get('room');
+    if (qroom && qroom.trim()) { room = qroom.trim(); store.set(LS.room, room); }
+  } catch (e) {}
+
   // 기준 상태
   if (!state.cur) {
     state.cur = [DEFAULT_MISSIONS[Math.floor(Math.random() * DEFAULT_MISSIONS.length)], now(), ri()];
