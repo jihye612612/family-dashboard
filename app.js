@@ -1,12 +1,16 @@
 /* 우리 가족 기록장
  * 엄마 · 도완 · 도은을 위한 가족 대시보드
- * 동기화: ntfy.sh 공용 채널(방 코드) — SSE 실시간 수신 + 폴링 폴백 + localStorage
+ * 동기화: 가족 비밀번호로 만든 ntfy.sh 채널 — SSE 실시간 수신 + 폴링 폴백 + localStorage
+ * 방 이름은 저장소에 적어 두지 않고, 기기에서 가족 비밀번호로 계산해 씁니다.
  */
 'use strict';
 
 /* ============================== 설정 ============================== */
-const ROOM = 'pickle-family-a116a11122b5';      // 우리 가족 방 코드 (동기화 채널)
 const NTFY = 'https://ntfy.sh';
+const ROOM_SALT = 'pickle-family-v2:';            // 비밀번호 → 방 이름 (고정 접두어)
+const ROOM_PREFIX = 'pkf-';                       // 만들어지는 방 이름 앞부분
+const ROOM_KEY_HEX = 28;                          // 방 이름에 쓰는 해시 길이
+const MIN_PW_LEN = 4;                             // 가족 비밀번호 최소 길이
 const WIRE_MAX_BYTES = 3900;                      // ntfy 메시지 한도(4096B) 여유
 const POLL_MS = 6000;                             // 실시간 연결이 끊겼을 때 폴링 간격
 
@@ -18,7 +22,8 @@ const LS = {
   bed: 'fd_bed_on',
   bedTime: 'fd_bed_time',
   bedLast: 'fd_bed_last',
-  room: 'fd_room',
+  roomKey: 'fd_room_key_v2',                      // 비밀번호로 만든 방 이름만 저장 (비밀번호 원문은 저장하지 않음)
+  oldRoom: 'fd_room',                             // 예전 버전의 방 코드 자리 (정리용)
   timer: 'fd_timer_min'
 };
 
@@ -251,7 +256,7 @@ const DEVICE = (() => {
   if (!d) { d = ri(); store.set(LS.device, d); }
   return d;
 })();
-let room = store.get(LS.room, ROOM) || ROOM;
+let room = '';                     // 가족 비밀번호를 넣기 전에는 비어 있어요 (그동안 어떤 채널에도 연결하지 않음)
 
 let lastMsgTime = 0;
 let sse = null;
@@ -275,12 +280,7 @@ function setStatus(mode, text) {
   el.textContent = text || (mode === 'on' ? '가족과 연결됨'
     : mode === 'off' ? '오프라인 — 이 기기에 저장 중'
     : '연결 중…');
-  const info = $('syncInfo');
-  if (info) {
-    info.textContent = lastSyncAt
-      ? `마지막 동기화: ${hhmm(lastSyncAt)} · 방 코드 ${room}`
-      : `방 코드 ${room}`;
-  }
+  renderSyncInfo();
 }
 
 function wireState(maxBytes) {
@@ -330,6 +330,7 @@ function schedulePublish(delay = 300) {
 }
 
 async function publish(payloadExtra) {
+  if (!room) return;                                 // 잠겨 있으면 아무 데도 보내지 않아요
   if (pubBusy) { schedulePublish(600); return; }
   pubBusy = true;
   try {
@@ -393,6 +394,7 @@ function flashSync() {
 }
 
 async function pollOnce(initial) {
+  if (!room) return;
   try {
     const since = initial ? '12h' : (lastMsgTime ? String(Math.max(1, Math.floor(lastMsgTime / 1000) - 2)) : '12h');
     const res = await fetch(`${NTFY}/${encodeURIComponent(room)}/json?poll=1&since=${since}&sched=0`, { cache: 'no-store' });
@@ -411,6 +413,7 @@ async function pollOnce(initial) {
 }
 
 function startPolling() {
+  if (!room) return;
   if (pollTimer) return;
   pollOnce(false);
   pollTimer = setInterval(() => { if (!document.hidden) pollOnce(false); }, POLL_MS);
@@ -421,6 +424,7 @@ function stopPolling() {
 }
 
 function startStream() {
+  if (!room) return;
   if (!('EventSource' in window)) { startPolling(); return; }
   closeStream();
   const since = lastMsgTime ? String(Math.max(1, Math.floor(lastMsgTime / 1000) - 2)) : '2h';
@@ -637,9 +641,10 @@ function renderChat() {
 function renderSyncInfo() {
   const info = $('syncInfo');
   if (!info) return;
+  if (!room) { info.textContent = '아직 가족 방에 연결하지 않았어요'; return; }
   info.textContent = lastSyncAt
-    ? `마지막 동기화 ${hhmm(lastSyncAt)} · 방 코드 ${room}`
-    : `방 코드 ${room}`;
+    ? `마지막 동기화 ${hhmm(lastSyncAt)} · 가족 방 연결됨`
+    : '가족 방에 연결하는 중…';
 }
 
 function pruneCheck() {
@@ -1032,24 +1037,18 @@ function bindEvents() {
       $('customCityInput').placeholder = '찾지 못했어요. 다른 이름으로…';
     }
   });
-  $('roomSave').addEventListener('click', () => {
-    const v = $('roomInput').value.trim();
-    if (!v) return;
-    room = v;
-    store.set(LS.room, v);
-    closeStream(); stopPolling();
-    lastMsgTime = 0;
-    setStatus('wait');
-    startStream();
-    pollOnce(true);
+  $('relock').addEventListener('click', () => {
+    if (!confirm('이 기기를 잠그고 가족 비밀번호를 다시 넣을까요?\n가족 모두 같은 새 비밀번호로 다시 들어가야 해요.')) return;
     closeSheet();
+    lockApp('비밀번호를 다시 넣어 주세요');
   });
   $('soundTest').addEventListener('click', () => { audio(); chime(); });
   $('resetDevice').addEventListener('click', () => {
-    if (!confirm('이 기기에 저장된 기록과 선택한 사용자를 지울까요? (가족 공용 기록은 그대로 남아요)')) return;
+    if (!confirm('이 기기에 저장된 기록과 선택한 사용자, 기억해 둔 가족 비밀번호까지 지울까요? (가족 공용 기록은 그대로 남아요)')) return;
     suppressSave = true;
-    [LS.state, LS.me, LS.city, LS.city + '_coords', LS.bed, LS.bedTime, LS.bedLast, LS.timer, LS.room].forEach((k) => store.del(k));
-    location.replace(location.pathname);   // 기본 방 코드로 돌아갑니다
+    [LS.state, LS.me, LS.city, LS.city + '_coords', LS.bed, LS.bedTime, LS.bedLast, LS.timer, LS.roomKey].forEach((k) => store.del(k));
+    room = '';
+    location.replace(location.pathname);   // 잠금 화면으로 돌아갑니다
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -1088,22 +1087,129 @@ function openSheet() {
   sel.innerHTML = CITIES.map((c) => `<option value="${esc(c[0])}" ${c[0] === city ? 'selected' : ''}>${esc(c[0])}</option>`).join('')
     + `<option value="__custom" ${!CITIES.some((c) => c[0] === city) ? 'selected' : ''}>직접 입력…</option>`;
   $('customCityRow').hidden = CITIES.some((c) => c[0] === city);
-  $('roomInput').value = room;
-  $('syncInfo').textContent = lastSyncAt ? `마지막 동기화 ${hhmm(lastSyncAt)} · 방 코드 ${room}` : `방 코드 ${room}`;
+  const lockState = $('lockState');
+  if (lockState) lockState.textContent = room ? '🔒 잠금 켜짐' : '잠김';
+  if ($('syncInfo')) renderSyncInfo();
   $('settingsSheet').hidden = false;
 }
 function closeSheet() { $('settingsSheet').hidden = true; }
 
-/* ============================== 시작 ============================== */
-function boot() {
-  bindEvents();
+/* ============================== 가족 비밀번호 잠금 ============================== */
+/* 가족 비밀번호를 그대로 보내지 않고, 정해진 규칙으로 방 이름을 계산해 씁니다. */
+function hexOf(buf) {
+  return Array.prototype.map.call(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
-  // 주소에 ?room=... 이 있으면 그 방을 사용 (가족 방은 기본값 그대로)
+function canCrypto() {
+  return !!(window.crypto && window.crypto.subtle && window.TextEncoder);
+}
+
+async function deriveRoom(password) {
+  const data = new TextEncoder().encode(ROOM_SALT + password);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return ROOM_PREFIX + hexOf(digest).slice(0, ROOM_KEY_HEX);
+}
+
+let appStarted = false;
+
+function lockError(text) {
+  const err = $('lockError');
+  if (err) { err.textContent = text; err.hidden = false; }
+  const card = $('lockCard');
+  anim(card, [
+    { transform: 'translateX(0)' },
+    { transform: 'translateX(-7px)' },
+    { transform: 'translateX(7px)' },
+    { transform: 'translateX(0)' }
+  ], { duration: 300 });
+}
+
+function showLock(message) {
+  const el = $('lockScreen');
+  if (!el) return;
+  el.hidden = false;
+  document.body.classList.add('locked');
+  const input = $('lockInput');
+  if (input) { input.value = ''; input.type = 'password'; }
+  const eye = $('lockEye');
+  if (eye) { eye.textContent = '👁️'; eye.setAttribute('aria-label', '비밀번호 보기'); }
+  const note = $('lockNote');
+  if (note) note.textContent = message || '한 번 넣으면 이 기기는 기억해요 💛';
+  const err = $('lockError');
+  if (err) { err.hidden = true; err.textContent = ''; }
+  setTimeout(() => { try { input.focus(); } catch (e) {} }, 80);
+}
+
+function hideLock() {
+  const el = $('lockScreen');
+  if (el) el.hidden = true;
+  document.body.classList.remove('locked');
+}
+
+function setLockBusy(busy) {
+  const btn = $('lockGo');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.textContent = busy ? '들어가는 중…' : '들어가기';
+}
+
+async function tryUnlock() {
+  const input = $('lockInput');
+  const raw = ((input && input.value) || '').trim();
+  if (raw.length < MIN_PW_LEN) {
+    lockError(`가족끼리 정한 비밀번호를 ${MIN_PW_LEN}글자 이상 넣어 주세요`);
+    return;
+  }
+  if (!canCrypto()) {
+    lockError('이 브라우저에서는 잠금 화면을 쓸 수 없어요. https 주소로 열어 주세요.');
+    return;
+  }
+  setLockBusy(true);
   try {
-    const qroom = new URLSearchParams(location.search).get('room');
-    if (qroom && qroom.trim()) { room = qroom.trim(); store.set(LS.room, room); }
-  } catch (e) {}
+    const key = await deriveRoom(raw);
+    room = key;
+    store.set(LS.roomKey, key);
+    if (input) input.value = '';
+    hideLock();
+    if (!appStarted) { appStarted = true; startApp(); }
+    restartSync();
+  } catch (e) {
+    lockError('비밀번호를 확인하지 못했어요. 다시 한 번 눌러 주세요');
+  } finally {
+    setLockBusy(false);
+  }
+}
 
+function lockApp(message) {
+  closeStream();
+  stopPolling();
+  clearTimeout(pubTimer);
+  clearTimeout(sseRetryTimer);
+  room = '';
+  store.del(LS.roomKey);
+  lastMsgTime = 0;
+  lastSyncAt = 0;
+  setStatus('wait');
+  showLock(message);
+}
+
+function bindLock() {
+  const form = $('lockForm');
+  if (form) form.addEventListener('submit', (e) => { e.preventDefault(); tryUnlock(); });
+  const eye = $('lockEye');
+  if (eye) eye.addEventListener('click', () => {
+    const input = $('lockInput');
+    if (!input) return;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    eye.textContent = show ? '🙈' : '👁️';
+    eye.setAttribute('aria-label', show ? '비밀번호 가리기' : '비밀번호 보기');
+    try { input.focus(); } catch (e) {}
+  });
+}
+
+/* ============================== 시작 ============================== */
+function startApp() {
   // 기준 상태
   if (!state.cur) {
     state.cur = [DEFAULT_MISSIONS[Math.floor(Math.random() * DEFAULT_MISSIONS.length)], now(), ri()];
@@ -1123,20 +1229,44 @@ function boot() {
   setInterval(() => { loadWeather(false); }, 20 * 60 * 1000);
   setInterval(bedCheck, 1000);
   bedCheck();
+}
 
-  // 동기화: 최근 12시간 기록 받아 병합 → 실시간 연결
+/* 동기화 시작: 최근 12시간 기록 받아 병합 → 실시간 연결 */
+function restartSync() {
+  if (!room) return;
+  closeStream();
+  stopPolling();
+  lastMsgTime = 0;
   setStatus('wait');
   (async () => {
     await pollOnce(true);
     renderAll();
     startStream();
     // 켤 때는 상태를 올리지 않고 가족에게 "지금 상태 알려줘"만 보냅니다.
-    // (다른 기기가 응답하고, 기록은 사용자가 무언가를 할 때 올라갑니다)
     publish({ f: DEVICE, hello: 1 });
   })();
+}
 
-  // 서비스워커 없이도 홈 화면 추가 안내 없이 동작
+function boot() {
+  bindEvents();
+  bindLock();
+
+  store.del(LS.oldRoom);                 // 예전 버전의 방 코드는 더 쓰지 않아요
+
   window.addEventListener('pagehide', () => { if (!suppressSave) saveState(); });
+
+  const saved = store.get(LS.roomKey, '');
+  if (saved) {
+    room = saved;
+    hideLock();
+    appStarted = true;
+    startApp();
+    restartSync();
+  } else {
+    room = '';
+    setStatus('wait', '가족 비밀번호를 넣어 주세요');
+    showLock();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', boot);

@@ -11,7 +11,33 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%8F%A1%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="locked">
+
+<!-- 가족 비밀번호 잠금 -->
+<div class="lock" id="lockScreen">
+  <div class="lock-inner">
+    <span class="lock-deco deco-1" aria-hidden="true">🌷</span>
+    <span class="lock-deco deco-2" aria-hidden="true">⭐</span>
+    <span class="lock-deco deco-3" aria-hidden="true">🍀</span>
+    <div class="lock-card" id="lockCard">
+      <div class="lock-emoji" aria-hidden="true">🔒</div>
+      <h2 class="lock-title">우리 가족 비밀번호</h2>
+      <p class="lock-sub">우리 가족만 아는 비밀번호를 넣어 주세요</p>
+      <form class="lock-form" id="lockForm" autocomplete="off">
+        <div class="lock-input-wrap">
+          <input id="lockInput" type="password" inputmode="text" placeholder="가족 비밀번호"
+                 maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="가족 비밀번호">
+          <button class="lock-eye" id="lockEye" type="button" aria-label="비밀번호 보기">👁️</button>
+        </div>
+        <button class="btn primary big lock-go" id="lockGo" type="submit">들어가기</button>
+      </form>
+      <p class="lock-error" id="lockError" role="alert" hidden></p>
+      <p class="lock-note" id="lockNote">한 번 넣으면 이 기기는 기억해요 💛</p>
+    </div>
+    <p class="lock-foot">🏡 엄마 · 도완 · 도은의 기록장</p>
+  </div>
+</div>
+
 <div class="app">
 
   <header class="topbar">
@@ -158,14 +184,14 @@
         <button class="btn" id="customCitySave">찾기</button>
       </div>
 
-      <label class="field">
-        <span>우리 가족 방 코드</span>
-        <div class="row">
-          <input id="roomInput" spellcheck="false" autocomplete="off">
-          <button class="btn" id="roomSave">저장</button>
+      <div class="lock-setting">
+        <div class="lock-setting-head">
+          <span>🔒 우리 가족 비밀번호</span>
+          <span class="lock-state" id="lockState">🔒 잠금 켜짐</span>
         </div>
-      </label>
-      <p class="hint">가족 모두 같은 방 코드를 쓰면 기록이 함께 보여요. 기본 방은 이미 설정되어 있어요.</p>
+        <button class="btn ghost" id="relock">비밀번호 다시 입력 / 기기 잠금</button>
+        <p class="hint">비밀번호를 바꾸려면 이 기기를 잠그고 새 비밀번호를 넣으면 돼요. 그때는 가족 모두 같은 새 비밀번호로 다시 들어와야 해요.</p>
+      </div>
 
       <div class="sheet-actions">
         <button class="btn ghost" id="soundTest">🔔 소리 테스트</button>
