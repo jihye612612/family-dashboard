@@ -710,8 +710,9 @@ function celebrate(who, sub) {
   $('hfTitle').textContent = who ? `${who} 최고! 다 같이 했어요!` : '다 같이 했어요!';
   $('hfSub').textContent = sub || '짝짝짝 👏 도장이 찍혔어요';
   const burst = $('hfBurst');
-  burst.textContent = '🙌';
-  burst.innerHTML = '';
+  const inner = burst.parentElement;
+  burst.innerHTML = '<span class="hf-emoji">🙌</span>';
+  inner.querySelectorAll('.confetti').forEach((n) => n.remove());
   const emojis = ['🙌', '👏', '✨', '⭐', '💛', '🎉'];
   for (let i = 0; i < 18; i++) {
     const s = document.createElement('span');
@@ -720,12 +721,15 @@ function celebrate(who, sub) {
     s.style.left = Math.random() * 88 + '%';
     s.style.animationDelay = (Math.random() * 0.5).toFixed(2) + 's';
     s.style.fontSize = (12 + Math.random() * 12).toFixed(0) + 'px';
-    burst.appendChild(s);
+    inner.appendChild(s);
   }
   ov.hidden = false;
   cheer();
   clearTimeout(celebrate._t);
-  celebrate._t = setTimeout(() => { ov.hidden = true; }, 3600);
+  celebrate._t = setTimeout(() => {
+    ov.hidden = true;
+    inner.querySelectorAll('.confetti').forEach((n) => n.remove());
+  }, 4200);
 }
 
 /* ============================== 타이머 ============================== */

@@ -287,7 +287,8 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 @keyframes popIn { from { transform: scale(.82); opacity: 0 } to { transform: scale(1); opacity: 1 } }
 .celebrate-inner h2 { margin: 8px 0 4px; font-size: 22px; color: #7A5A1E; }
 .celebrate-inner p { margin: 0 0 16px; font-size: 13.5px; color: var(--ink-soft); }
-.hf-burst { font-size: 54px; animation: hfBounce .6s ease infinite alternate; }
+.hf-burst { position: relative; height: 74px; display: flex; align-items: center; justify-content: center; }
+.hf-emoji { font-size: 54px; display: inline-block; animation: hfBounce .6s ease infinite alternate; }
 @keyframes hfBounce { from { transform: translateY(0) rotate(-6deg) } to { transform: translateY(-10px) rotate(6deg) } }
 .alarm-inner {
   background: #FFFDF6; border-radius: 26px; padding: 28px 22px 22px; text-align: center; width: 100%; max-width: 340px;
@@ -301,7 +302,7 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 
 /* confetti */
 .confetti {
-  position: absolute; top: -10px; font-size: 16px; opacity: .95; animation: fall 1.8s linear forwards;
+  position: absolute; top: -12px; z-index: 2; font-size: 16px; opacity: .95; animation: fall 1.8s linear forwards;
   pointer-events: none;
 }
 @keyframes fall {
