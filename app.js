@@ -13,6 +13,10 @@ const ROOM_KEY_HEX = 28;                          // 방 이름에 쓰는 해시
 const MIN_PW_LEN = 4;                             // 가족 비밀번호 최소 길이
 const WIRE_MAX_BYTES = 3900;                      // ntfy 메시지 한도(4096B) 여유
 const POLL_MS = 6000;                             // 실시간 연결이 끊겼을 때 폴링 간격
+const PHOTO_MAX_PX = 960;                         // 사진은 긴 쪽 960px까지만 줄여서 올려요
+const PHOTO_QUALITY = 0.78;                       // JPEG 품질 (휴대폰 사진도 1초 안에 올라가요)
+const PHOTO_TOPIC_TAIL = '-files';                // 사진은 채팅 주제 대신 사진 전용 주제로 올려요
+const PHOTO_KEEP_HOURS = 3;                       // ntfy에 사진이 보관되는 시간
 
 const LS = {
   state: 'fd_state_v1',
@@ -358,13 +362,10 @@ async function publish(payloadExtra) {
 async function handleIncoming(msg) {
   if (!msg || msg.event !== 'message') return;
   if (msg.time && msg.time * 1000 > lastMsgTime) lastMsgTime = msg.time * 1000;
+  // 사진은 채팅 주제가 아닌 사진 전용 주제(room + '-files')로 올라갑니다.
+  // 채팅 주제에 파일이 그대로 붙어 오는 ntfy 원본 알림은 우리 앱 메시지가 아니라서 조용히 넘겨요.
+  if (msg.attachment && msg.attachment.url) return;
   let data = msg.message;
-  if (msg.attachment && msg.attachment.url) {
-    try {
-      const r = await fetch(msg.attachment.url, { cache: 'no-store' });
-      if (r.ok) data = await r.text();
-    } catch (e) { return; }
-  }
   let obj;
   try { obj = JSON.parse(data); } catch (e) { return; }
   if (!obj || typeof obj !== 'object') return;
@@ -618,16 +619,29 @@ function renderChat() {
     return;
   }
   log.innerHTML = msgs.map(({ id, d }) => {
-    const [who, ts, text] = d;
+    const who = d[0];
+    const ts = d[1];
+    const text = typeof d[2] === 'string' ? d[2] : '';
+    const photo = safePhotoUrl(d[3]);          // 네 번째 칸: ntfy에 올린 사진 주소
     const m = memberByName(who);
     const isMine = who === me;
     const reactions = state.reacts[id] || [];
-    const emojiOnly = text.length <= 6 && [...text].every((ch) => ch.codePointAt(0) > 0x2000);
+    const emojiOnly = !photo && text.length > 0 && text.length <= 6
+      && [...text].every((ch) => ch.codePointAt(0) > 0x2000);
+    const bubble = photo
+      ? `<div class="bubble photo">
+          <a class="photo-link" href="${esc(photo)}" data-photo="${esc(id)}" target="_blank" rel="noopener">
+            <img class="chat-photo" src="${esc(photo)}" alt="${esc(who)}님이 보낸 사진" loading="lazy">
+            <span class="photo-gone">만료된 사진이에요 (${PHOTO_KEEP_HOURS}시간 보관)</span>
+          </a>
+          ${text ? `<div class="photo-cap">${esc(text)}</div>` : ''}
+        </div>`
+      : `<div class="bubble ${emojiOnly ? 'sticker' : ''}">${esc(text)}</div>`;
     return `<div class="msg ${isMine ? 'mine' : ''}">
       <div class="avatar">${avatarSVG(m ? m.key : 'mom')}</div>
       <div class="msg-body">
         <div class="msg-name">${esc(who)}</div>
-        <div class="bubble ${emojiOnly ? 'sticker' : ''}">${esc(text)}</div>
+        ${bubble}
         <div class="msg-foot">
           <span class="msg-time">${hhmm(ts)}</span>
           <button class="react ${reactions.length ? 'on' : ''}" data-react="${id}">❤️${reactions.length ? ' ' + reactions.length : ''}</button>
@@ -960,7 +974,40 @@ function bindEvents() {
     const b = e.target.closest('[data-sticker]');
     if (b) sendChat(b.dataset.sticker, true);
   });
+  // 사진 보내기
+  $('photoBtn').addEventListener('click', () => {
+    if (!room) return;
+    if (!getMe()) { hintWho(); return; }
+    photoNote('');
+    $('photoInput').click();
+  });
+  $('photoInput').addEventListener('change', (e) => {
+    const input = e.target;
+    const file = input.files && input.files[0];
+    input.value = '';                       // 같은 사진을 다시 골라도 동작하도록
+    if (file) sendPhotoFile(file);
+  });
+  // 사진이 만료됐거나 지워졌을 때 안내로 바꿔 줍니다
+  $('chatLog').addEventListener('error', (e) => {
+    const img = e.target;
+    if (!img || !img.classList || !img.classList.contains('chat-photo')) return;
+    const link = img.closest ? img.closest('.photo-link') : null;
+    if (!link) return;
+    link.classList.add('gone');
+    link.removeAttribute('href');
+    link.removeAttribute('data-photo');
+  }, true);
+  // 사진 크게 보기 — 열기 / 닫기
+  $('photoView').addEventListener('click', (e) => {
+    if (e.target.id === 'photoView' || e.target.id === 'photoViewClose') closePhotoView();
+  });
   $('chatLog').addEventListener('click', (e) => {
+    const ph = e.target.closest('[data-photo]');
+    if (ph) {
+      e.preventDefault();
+      openPhotoView(ph.getAttribute('href'));
+      return;
+    }
     const b = e.target.closest('[data-react]');
     if (!b) return;
     const me = getMe();
@@ -1067,18 +1114,162 @@ function hintWho() {
   $('whoPills').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function sendChat(text, isSticker) {
+function sendChat(text, isSticker, photoUrl) {
   const t = (text || '').trim();
-  if (!t) return;
+  const photo = safePhotoUrl(photoUrl);
+  if (!t && !photo) return;
   const me = getMe();
   if (!me) { hintWho(); return; }
   const id = ri();
-  state.chat[id] = [me, now(), t.slice(0, 200)];
+  const entry = [me, now(), t.slice(0, 200)];
+  if (photo) entry[3] = photo;         // 네 번째 칸: 사진 주소 (글 없이 사진만 보낸 경우 text는 빈 문자열)
+  state.chat[id] = entry;
   saveState();
   renderChat();
   schedulePublish(0);
-  if (!isSticker) $('chatInput').value = '';
+  if (!isSticker) { const inp = $('chatInput'); if (inp) inp.value = ''; }
+  photoNote('');
   beep(1040, 0.09);
+}
+
+/* ============================== 채팅 사진 ============================== */
+/* 사진은 ① 휴대폰에서 고른 그림을 캔버스로 줄이고 ② ntfy 사진 전용 주제에 PUT으로 올리고
+   ③ 돌려받은 주소만 채팅 메시지 네 번째 칸에 넣어 보냅니다.
+   ntfy가 3시간만 보관하므로, 그 뒤에 열면 앱이 "만료된 사진" 안내를 보여 줍니다. */
+let photoBusy = false;
+
+function safePhotoUrl(u) {
+  return typeof u === 'string' && /^https?:\/\/\S+$/i.test(u) ? u : '';
+}
+
+function photoNote(text) {
+  const el = $('photoNote');
+  if (!el) return;
+  el.textContent = text || '';
+  el.hidden = !text;
+}
+
+function photoBusyUI(busy) {
+  photoBusy = !!busy;
+  const btn = $('photoBtn');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.classList.toggle('busy', !!busy);
+  btn.textContent = busy ? '⏳' : '📷';
+}
+
+/* 고른 사진을 긴 쪽 960px · JPEG 0.78로 줄입니다 */
+function shrinkPhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!window.URL || !URL.createObjectURL || !document.createElement('canvas').getContext) {
+      reject(new Error('unsupported'));
+      return;
+    }
+    const src = URL.createObjectURL(file);
+    const img = new Image();
+    let done = false;
+    const finish = (fn, v) => {
+      if (done) return;
+      done = true;
+      try { URL.revokeObjectURL(src); } catch (e) {}
+      fn(v);
+    };
+    img.onload = () => {
+      try {
+        const w0 = img.naturalWidth || img.width;
+        const h0 = img.naturalHeight || img.height;
+        if (!w0 || !h0) { finish(reject, new Error('empty')); return; }
+        const scale = Math.min(1, PHOTO_MAX_PX / Math.max(w0, h0));
+        const w = Math.max(1, Math.round(w0 * scale));
+        const h = Math.max(1, Math.round(h0 * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { finish(reject, new Error('canvas')); return; }
+        ctx.fillStyle = '#FFFFFF';                 // 투명한 그림도 하얀 바탕으로
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        if (!canvas.toBlob) { finish(reject, new Error('blob')); return; }
+        canvas.toBlob((blob) => {
+          if (blob) finish(resolve, blob);
+          else finish(reject, new Error('blob'));
+        }, 'image/jpeg', PHOTO_QUALITY);
+      } catch (err) {
+        finish(reject, err);
+      }
+    };
+    img.onerror = () => finish(reject, new Error('decode'));
+    img.src = src;
+  });
+}
+
+/* 사진 전용 주제에 올리고 주소를 돌려받습니다 */
+function putPhoto(blob) {
+  return new Promise((resolve, reject) => {
+    if (!room) { reject(new Error('locked')); return; }
+    const topic = room + PHOTO_TOPIC_TAIL;
+    const name = 'photo-' + Date.now().toString(36) + '.jpg';
+    fetch(NTFY + '/' + encodeURIComponent(topic), {
+      method: 'PUT',
+      headers: { 'Filename': name, 'Content-Type': 'image/jpeg' },
+      body: blob
+    }).then((res) => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then((obj) => {
+      const url = obj && obj.attachment && obj.attachment.url ? String(obj.attachment.url) : '';
+      if (!safePhotoUrl(url)) throw new Error('no-url');
+      resolve(url);
+    }).catch(reject);
+  });
+}
+
+async function sendPhotoFile(file) {
+  if (!file || photoBusy) return;
+  if (!room) return;
+  const me = getMe();
+  if (!me) { hintWho(); return; }
+  if (file.type && String(file.type).indexOf('image/') !== 0) {
+    photoNote('사진 파일만 보낼 수 있어요');
+    return;
+  }
+  const caption = (($('chatInput') || {}).value || '').trim();
+  photoNote('');
+  photoBusyUI(true);
+  let blob;
+  try {
+    blob = await shrinkPhoto(file);
+  } catch (e) {
+    photoBusyUI(false);
+    photoNote('이 사진은 보낼 수 없어요. JPG · PNG 사진으로 다시 굴라 주세요');
+    return;
+  }
+  photoNote('사진 올리는 중…');
+  try {
+    const url = await putPhoto(blob);
+    photoBusyUI(false);
+    sendChat(caption, false, url);
+  } catch (e) {
+    photoBusyUI(false);
+    photoNote('사진을 올리지 못했어요. 잠시 뒤 다시 해 보세요');
+  }
+}
+
+/* 시진 크게 보기 */
+function openPhotoView(url) {
+  const view = $('photoView');
+  const img = $('photoViewImg');
+  if (!view || !img || !safePhotoUrl(url)) return;
+  img.src = url;
+  view.hidden = false;
+}
+
+function closePhotoView() {
+  const view = $('photoView');
+  const img = $('photoViewImg');
+  if (view) view.hidden = true;
+  if (img) img.removeAttribute('src');
 }
 
 function openSheet() {
