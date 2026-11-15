@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FDF6EC">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="우리 가족 기록장">
+<meta name="description" content="우리 가족 기록장 - 가족 미션, 도장판, 채팅, 타이머">
+<title>우리 가족 기록장</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%8F%A1%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-emoji" aria-hidden="true">🏡</span>
+      <div class="brand-text">
+        <h1>우리 가족 기록장</h1>
+        <p class="today" id="todayLabel">오늘</p>
+      </div>
+    </div>
+    <button class="gear" id="openSettings" aria-label="설정 열기">⚙️</button>
+  </header>
+
+  <section class="card weather-card" id="weatherCard" aria-live="polite">
+    <div class="weather-main">
+      <div class="weather-emoji" id="weatherEmoji">🌈</div>
+      <div class="weather-temp">
+        <strong id="weatherTemp">--°</strong>
+        <span id="weatherSky">불러오는 중…</span>
+      </div>
+      <div class="weather-side">
+        <span id="weatherRange">최저 --° / 최고 --°</span>
+        <button class="mini" id="weatherCityBtn" title="도시 바꾸기">📍 <span id="weatherCity">대구</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card-h"><span aria-hidden="true">👋</span> 이 기기에서 쓰는 사람</h2>
+    <div class="who-pills" id="whoPills"></div>
+    <p class="hint" id="whoHint">휴대폰마다 한 번만 골라 두면, 그 기기는 계속 그 사람으로 기억해요.</p>
+  </section>
+
+  <section class="members" id="members" aria-label="가족 구성원"></section>
+
+  <section class="card mission-card">
+    <h2 class="card-h"><span aria-hidden="true">🎲</span> 오늘의 가족 미션</h2>
+    <div class="mission-bubble" id="missionText">미션을 고르는 중…</div>
+    <div class="mission-actions">
+      <button class="btn ghost" id="rerollMission">🎲 다른 미션</button>
+      <button class="btn primary" id="doneMission">🙌 다 같이 했어요!</button>
+    </div>
+    <div class="mission-meta" id="missionMeta"></div>
+    <details class="add-mission">
+      <summary>+ 우리 가족 미션 직접 추가</summary>
+      <div class="row">
+        <input id="customMission" placeholder="예) 베란다 화분에 물 주기" maxlength="40" autocomplete="off">
+        <button class="btn" id="addMission">추가</button>
+      </div>
+    </details>
+  </section>
+
+  <section class="card stamp-card">
+    <div class="card-h-row">
+      <h2 class="card-h"><span aria-hidden="true">✨</span> 미션 도장판</h2>
+      <span class="stamp-total" id="stampTotal">0개</span>
+    </div>
+    <div class="calendar-head" id="calendarHead"></div>
+    <div class="calendar" id="calendar"></div>
+  </section>
+
+  <section class="card timer-card">
+    <h2 class="card-h"><span aria-hidden="true">⏳</span> 타이머</h2>
+    <div class="timer-display" id="timerDisplay">00:00</div>
+    <div class="timer-presets">
+      <button class="chip" data-min="10">10분</button>
+      <button class="chip" data-min="20">20분</button>
+      <button class="chip" data-min="30">30분</button>
+      <span class="custom-min">
+        <input type="number" id="customMin" min="1" max="180" inputmode="numeric" placeholder="직접">
+        <button class="chip" id="setCustomMin">설정</button>
+      </span>
+    </div>
+    <div class="timer-controls">
+      <button class="btn primary" id="timerStart">시작</button>
+      <button class="btn ghost" id="timerPause">멈춤</button>
+      <button class="btn ghost" id="timerReset">리셋</button>
+    </div>
+
+    <div class="bed-alarm">
+      <label class="switch-row">
+        <span>🛏️ 태블릿 끄는 알람</span>
+        <span class="switch"><input type="checkbox" id="bedToggle"><span class="slider"></span></span>
+      </label>
+      <div class="row bed-row">
+        <input type="time" id="bedTime" value="21:30" aria-label="태블릿 끄는 시간">
+        <span class="hint">이 기기에서만 울려요</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card chat-card">
+    <h2 class="card-h"><span aria-hidden="true">💬</span> 가족 채팅방</h2>
+    <div class="chat-log" id="chatLog"></div>
+    <div class="stickers" id="stickers"></div>
+    <form class="chat-form" id="chatForm" autocomplete="off">
+      <input id="chatInput" placeholder="메시지를 남겨 보세요" maxlength="200">
+      <button class="btn primary" type="submit">보내기</button>
+    </form>
+  </section>
+
+  <footer class="foot">
+    <span id="syncStatus" class="sync">연결 중…</span>
+    <span class="foot-dot">·</span>
+    <span>우리 가족 기록장</span>
+  </footer>
+</div>
+
+<!-- 하이파이브 축하 -->
+<div class="overlay celebrate" id="highFiveOverlay" hidden>
+  <div class="celebrate-inner">
+    <div class="hf-burst" id="hfBurst"></div>
+    <h2 id="hfTitle">다 같이 했어요!</h2>
+    <p id="hfSub">짝짝짝 👏 도장이 찍혔어요</p>
+    <button class="btn primary" id="hfClose">좋아요!</button>
+  </div>
+</div>
+
+<!-- 알람 -->
+<div class="overlay alarm" id="alarmOverlay" hidden>
+  <div class="alarm-inner">
+    <div class="alarm-emoji" id="alarmEmoji">⏰</div>
+    <h2 id="alarmTitle">시간이 다 됐어요!</h2>
+    <p id="alarmSub">정리하고 다음 놀이를 준비해요</p>
+    <button class="btn primary big" id="alarmClose">알람 끄기</button>
+  </div>
+</div>
+
+<!-- 설정 -->
+<div class="sheet-wrap" id="settingsSheet" hidden>
+  <div class="sheet-backdrop" data-close-sheet></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head">
+      <h2 id="sheetTitle">설정</h2>
+      <button class="gear" data-close-sheet aria-label="설정 닫기">✕</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field">
+        <span>날씨 도시</span>
+        <select id="citySelect"></select>
+      </label>
+      <div class="row" id="customCityRow" hidden>
+        <input id="customCityInput" placeholder="도시 이름 (예: 경주)" maxlength="20">
+        <button class="btn" id="customCitySave">찾기</button>
+      </div>
+
+      <label class="field">
+        <span>우리 가족 방 코드</span>
+        <div class="row">
+          <input id="roomInput" spellcheck="false" autocomplete="off">
+          <button class="btn" id="roomSave">저장</button>
+        </div>
+      </label>
+      <p class="hint">가족 모두 같은 방 코드를 쓰면 기록이 함께 보여요. 기본 방은 이미 설정되어 있어요.</p>
+
+      <div class="sheet-actions">
+        <button class="btn ghost" id="soundTest">🔔 소리 테스트</button>
+        <button class="btn ghost danger" id="resetDevice">이 기기 기록 지우기</button>
+      </div>
+      <p class="hint" id="syncInfo"></p>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
