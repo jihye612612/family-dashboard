@@ -229,7 +229,9 @@ function mergeState(target, incoming) {
   Object.keys(inc.stamps).forEach((d) => {
     const mine = target.stamps[d] || (target.stamps[d] = []);
     inc.stamps[d].forEach((s) => {
-      if (!mine.some((m) => m[0] === s[0] && m[2] === s[2])) { mine.push(s); changes++; }
+      const idx = mine.findIndex((m) => m[0] === s[0]);
+      if (idx < 0) { mine.push(s); changes++; }
+      else if ((s[2] || 0) < (mine[idx][2] || 0)) mine[idx] = s;   // 같은 날 같은 사람은 한 개
     });
   });
   Object.keys(inc.missions).forEach((id) => {
@@ -286,8 +288,14 @@ function wireState(maxBytes) {
   let keepChat = 40;
   let keepEv = 200;
   let keepMissions = 15;
+  let keepPrevMonth = true;
+  const thisMonth = dayKey().slice(0, 7);
   const build = () => {
-    const out = { v: 1, chat: {}, reacts: {}, stars: { base: s.stars.base, ev: {} }, stamps: s.stamps, missions: {}, cur: s.cur };
+    const stamps = {};
+    Object.keys(s.stamps).sort().slice(keepPrevMonth ? 0 : -999).forEach((d) => {
+      if (keepPrevMonth || d.slice(0, 7) === thisMonth) stamps[d] = s.stamps[d];
+    });
+    const out = { v: 1, chat: {}, reacts: {}, stars: { base: s.stars.base, ev: {} }, stamps: stamps, missions: {}, cur: s.cur };
     ids.slice(0, keepChat).forEach((id) => {
       out.chat[id] = s.chat[id];
       if (s.reacts[id]) out.reacts[id] = s.reacts[id];
@@ -308,6 +316,7 @@ function wireState(maxBytes) {
     if (keepChat > 5) keepChat -= 5;
     else if (keepEv > 20) keepEv -= 20;
     else if (keepMissions > 0) keepMissions -= 1;
+    else if (keepPrevMonth) keepPrevMonth = false;
     else break;
     payload = build();
   }
@@ -634,8 +643,13 @@ function renderSyncInfo() {
 
 function pruneCheck() {
   const today = dayKey();
-  if (state.stamps[today] && state.stamps[today].length > MEMBERS.length + 2) {
-    state.stamps[today] = state.stamps[today].slice(-MEMBERS.length - 2);
+  if (state.stamps[today] && state.stamps[today].length > MEMBERS.length) {
+    const seen = [];
+    state.stamps[today] = state.stamps[today].filter((s) => {
+      if (seen.includes(s[0])) return false;
+      seen.push(s[0]);
+      return true;
+    });
   }
 }
 

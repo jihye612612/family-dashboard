@@ -168,11 +168,18 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 .stamp-total {
   font-size: 12px; background: var(--yellow); color: #9A6E12; border-radius: 999px; padding: 3px 10px; font-weight: 700;
 }
-.calendar-head, .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-.calendar-head { margin-bottom: 5px; }
-.calendar-head span { text-align: center; font-size: 11px; color: var(--muted); }
-.calendar-head span.sun { color: #DB8C8C; }
-.calendar-head span.sat { color: #7FA6D6; }
+.cal-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 7px; font-size: 13.5px; }
+.cal-nav strong { font-size: 14px; letter-spacing: -0.2px; }
+.cal-btn {
+  border: 1px solid var(--line); background: #fff; border-radius: 10px; width: 28px; height: 26px;
+  font-size: 15px; line-height: 1; color: var(--ink-soft); cursor: pointer; padding: 0;
+}
+.cal-btn:active { transform: scale(.94); background: #FFF6E2; }
+.cal-week, .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal-week { margin-bottom: 5px; }
+.cal-week span { text-align: center; font-size: 11px; color: var(--muted); }
+.cal-week span.sun { color: #DB8C8C; }
+.cal-week span.sat { color: #7FA6D6; }
 .day {
   aspect-ratio: 1 / 1; border-radius: 12px; background: #FCF7EE; border: 1px solid #F4E9D9;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
