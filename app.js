@@ -5,7 +5,7 @@
 'use strict';
 
 /* ============================== 설정 ============================== */
-const ROOM = 'pickle-family-9134b5d45b47';      // 우리 가족 방 코드 (동기화 채널)
+const ROOM = 'pickle-family-e01e541008f3';      // 우리 가족 방 코드 (동기화 채널)
 const NTFY = 'https://ntfy.sh';
 const WIRE_MAX_BYTES = 3900;                      // ntfy 메시지 한도(4096B) 여유
 const POLL_MS = 6000;                             // 실시간 연결이 끊겼을 때 폴링 간격
@@ -153,6 +153,7 @@ function emptyState() {
 }
 
 let state = loadState();
+let suppressSave = false;   // 이 기기 기록을 지우는 중에는 저장하지 않음
 
 function loadState() {
   try {
@@ -1046,6 +1047,7 @@ function bindEvents() {
   $('soundTest').addEventListener('click', () => { audio(); chime(); });
   $('resetDevice').addEventListener('click', () => {
     if (!confirm('이 기기에 저장된 기록과 선택한 사용자를 지울까요? (가족 공용 기록은 그대로 남아요)')) return;
+    suppressSave = true;
     [LS.state, LS.me, LS.city, LS.city + '_coords', LS.bed, LS.bedTime, LS.bedLast, LS.timer, LS.room].forEach((k) => store.del(k));
     location.replace(location.pathname);   // 기본 방 코드로 돌아갑니다
   });
@@ -1136,7 +1138,7 @@ function boot() {
   })();
 
   // 서비스워커 없이도 홈 화면 추가 안내 없이 동작
-  window.addEventListener('pagehide', () => { saveState(); });
+  window.addEventListener('pagehide', () => { if (!suppressSave) saveState(); });
 }
 
 document.addEventListener('DOMContentLoaded', boot);
