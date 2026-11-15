@@ -84,6 +84,9 @@ const hhmm = (ts) => {
 };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const byteLen = (s) => new TextEncoder().encode(s).length;
+function anim(el, frames, opts) {
+  if (el && typeof el.animate === 'function') { try { el.animate(frames, opts); } catch (e) {} }
+}
 const memberByName = (n) => MEMBERS.find((m) => m.name === n) || null;
 const memberByKey = (k) => MEMBERS.find((m) => m.key === k) || null;
 const store = {
@@ -605,7 +608,7 @@ function renderChat() {
     const m = memberByName(who);
     const isMine = who === me;
     const reactions = state.reacts[id] || [];
-    const emojiOnly = text.length <= 4 && /\p{Extended_Pictographic}/u.test(text);
+    const emojiOnly = text.length <= 6 && [...text].every((ch) => ch.codePointAt(0) > 0x2000);
     return `<div class="msg ${isMine ? 'mine' : ''}">
       <div class="avatar">${avatarSVG(m ? m.key : 'mom')}</div>
       <div class="msg-body">
@@ -869,7 +872,7 @@ function bindEvents() {
     renderMembers();
     schedulePublish(50);
     beep(1180, 0.14);
-    b.animate?.([{ transform: 'scale(1)' }, { transform: 'scale(.9)' }, { transform: 'scale(1)' }], { duration: 220 });
+    anim(b, [{ transform: 'scale(1)' }, { transform: 'scale(.9)' }, { transform: 'scale(1)' }], { duration: 220 });
   });
 
   // 미션
@@ -879,7 +882,7 @@ function bindEvents() {
     beep(1020, 0.1, 0.08);
     setMissionRandom(true);
     const el = $('missionText');
-    el.animate?.([{ transform: 'rotate(-1.5deg)' }, { transform: 'rotate(1.5deg)' }, { transform: 'rotate(0)' }], { duration: 260 });
+    anim(el, [{ transform: 'rotate(-1.5deg)' }, { transform: 'rotate(1.5deg)' }, { transform: 'rotate(0)' }], { duration: 260 });
   });
 
   $('addMission').addEventListener('click', () => {
@@ -1040,7 +1043,7 @@ function bindEvents() {
 
 function hintWho() {
   const p = $('whoPills');
-  p.animate?.([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 320 });
+  anim(p, [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 320 });
   $('whoHint').textContent = '먼저 위에서 "이 기기에서 쓰는 사람"을 골라 주세요!';
   $('whoPills').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
