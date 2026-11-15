@@ -5,7 +5,7 @@
 'use strict';
 
 /* ============================== 설정 ============================== */
-const ROOM = 'pickle-family-e01e541008f3';      // 우리 가족 방 코드 (동기화 채널)
+const ROOM = 'pickle-family-a116a11122b5';      // 우리 가족 방 코드 (동기화 채널)
 const NTFY = 'https://ntfy.sh';
 const WIRE_MAX_BYTES = 3900;                      // ntfy 메시지 한도(4096B) 여유
 const POLL_MS = 6000;                             // 실시간 연결이 끊겼을 때 폴링 간격
@@ -1130,11 +1130,9 @@ function boot() {
     await pollOnce(true);
     renderAll();
     startStream();
-    // 새 기기(기록이 거의 없음)라면 가족에게 상태를 요청
-    const sparse = Object.keys(state.chat).length === 0 && Object.keys(state.stamps).length === 0
-      && Object.keys(state.stars.ev).length === 0;
-    if (sparse) publish({ f: DEVICE, hello: 1 });
-    else schedulePublish(1200);
+    // 켤 때는 상태를 올리지 않고 가족에게 "지금 상태 알려줘"만 보냅니다.
+    // (다른 기기가 응답하고, 기록은 사용자가 무언가를 할 때 올라갑니다)
+    publish({ f: DEVICE, hello: 1 });
   })();
 
   // 서비스워커 없이도 홈 화면 추가 안내 없이 동작
