@@ -93,8 +93,8 @@ body {
   padding: 7px 14px 7px 8px; font-size: 14px; font-family: inherit; cursor: pointer;
   color: var(--ink-soft); transition: transform .12s ease, border-color .15s ease, background .15s ease;
 }
-.pill .avatar-mini { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; display: block; background: #fff; }
-.pill .avatar-mini svg { width: 100%; height: 100%; display: block; }
+.pill .avatar-mini { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; display: block; background: #FFF7E9; }
+.pill .avatar-mini svg, .pill .avatar-mini img { width: 100%; height: 100%; display: block; }
 .pill[aria-pressed="true"] { border-color: var(--green-deep); background: #F4FBEF; color: var(--ink); font-weight: 700; transform: translateY(-1px); }
 .pill:active { transform: scale(.97); }
 
@@ -111,8 +111,11 @@ body {
   position: absolute; top: 8px; right: 8px; font-size: 10px; background: var(--green);
   color: #3F7A46; border-radius: 999px; padding: 2px 7px; font-weight: 700;
 }
-.member .avatar { width: 66px; height: 66px; margin: 2px auto 4px; }
-.member .avatar svg { width: 100%; height: 100%; display: block; }
+.member .avatar {
+  width: 66px; height: 66px; margin: 2px auto 6px;
+  box-shadow: 0 4px 12px rgba(180,150,120,.22), 0 0 0 3px #FFFFFF;
+}
+.member .avatar svg, .member .avatar img { width: 100%; height: 100%; display: block; }
 .member .m-name { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
 .member .m-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
 .m-stars { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px; font-size: 13px; font-weight: 700; color: #B9762C; }
@@ -240,8 +243,18 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 }
 .chat-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 22px 0; }
 .msg { display: flex; gap: 8px; align-items: flex-end; }
-.msg .avatar { width: 34px; height: 34px; flex: 0 0 34px; }
-.msg .avatar svg { width: 100%; height: 100%; display: block; }
+.msg .avatar { width: 34px; height: 34px; flex: 0 0 34px; box-shadow: 0 1px 3px rgba(0,0,0,.10), 0 0 0 2px #FFFFFF; }
+.msg .avatar svg, .msg .avatar img { width: 100%; height: 100%; display: block; }
+
+/* ---------- 아바타 그림 (먼작귀 그림체 PNG) ---------- */
+/* 카드·선택 버튼·말풍선 어디에 놓여도 동그랗게 잘리고, 얼굴이 가운데 오도록 맞춰요. */
+.avatar, .avatar-mini { border-radius: 50%; overflow: hidden; background: #FFF7E9; }
+.avatar-img {
+  width: 100%; height: 100%; display: block;
+  object-fit: cover; object-position: center 46%;
+  border-radius: 50%;
+  user-select: none; -webkit-user-select: none; -webkit-user-drag: none;
+}
 .msg-body { max-width: 78%; }
 .msg-name { font-size: 11px; color: var(--muted); margin: 0 0 3px 2px; }
 .bubble {

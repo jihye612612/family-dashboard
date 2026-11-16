@@ -104,62 +104,19 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) {} }
 };
 
-/* ============================== 아바타 (먼작귀 스타일 SVG) ============================== */
-/* 치이카와 · 하치와레 · 우사기 느낌으로 80×80 상자 안에 그렸어요.
-   큰 카드(.avatar)와 작은 선택 버튼(.avatar-mini), 말풍선 옆(.msg .avatar)에서
-   모두 같은 그림을 쓰기 때문에 여백을 6~74 안쪽으로 잡았습니다. */
-function avatarSVG(key) {
-  if (key === 'mom') {
-    /* 치이카와: 포동포동 하얀 얼굴 · 작고 동그란 귀 · ω 입 */
-    return `<svg viewBox="0 0 80 80" role="img" aria-label="엄마">
-      <ellipse cx="40" cy="72" rx="15" ry="3.2" fill="#E4D5C4" opacity=".45"/>
-      <circle cx="25.5" cy="23.5" r="6.9" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2"/>
-      <circle cx="54.5" cy="23.5" r="6.9" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2"/>
-      <circle cx="25.5" cy="23.5" r="2.9" fill="#FFDCE3"/>
-      <circle cx="54.5" cy="23.5" r="2.9" fill="#FFDCE3"/>
-      <ellipse cx="40" cy="47" rx="24.5" ry="22.5" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2.2"/>
-      <ellipse cx="24" cy="54" rx="5.2" ry="3.2" fill="#FFC6D2"/>
-      <ellipse cx="56" cy="54" rx="5.2" ry="3.2" fill="#FFC6D2"/>
-      <ellipse cx="31" cy="45" rx="2.6" ry="3.1" fill="#3C3C3C"/>
-      <ellipse cx="49" cy="45" rx="2.6" ry="3.1" fill="#3C3C3C"/>
-      <path d="M34 53 q3 4.4 6 0 q3 4.4 6 0" fill="none" stroke="#4A4A4A" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
-  }
-  if (key === 'dowan') {
-    /* 하치와레: 하얀 얼굴 · 하늘색 뾰족 고양이 귀 · 이마 양갈래 가르마 */
-    return `<svg viewBox="0 0 80 80" role="img" aria-label="도완">
-      <ellipse cx="40" cy="72" rx="15" ry="3.2" fill="#CFE2F0" opacity=".5"/>
-      <path d="M22.5 33 L40 26 L28 9 Z" fill="#7EC8F2" stroke="#7EC8F2" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M57.5 33 L40 26 L52 9 Z" fill="#7EC8F2" stroke="#7EC8F2" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M26 30 L38 26.5 L30 15 Z" fill="#FFD6E0"/>
-      <path d="M54 30 L42 26.5 L50 15 Z" fill="#FFD6E0"/>
-      <ellipse cx="40" cy="47" rx="25" ry="22.5" fill="#FFFFFF" stroke="#9CB9C9" stroke-width="2.2"/>
-      <path d="M40 26 C32.5 27 27.5 32.4 26 41.5 C30.5 34.6 35.5 31.6 40 30.6 Z" fill="#7EC8F2"/>
-      <path d="M40 26 C47.5 27 52.5 32.4 54 41.5 C49.5 34.6 44.5 31.6 40 30.6 Z" fill="#7EC8F2"/>
-      <ellipse cx="24" cy="55" rx="5.2" ry="3.2" fill="#FFC6D2"/>
-      <ellipse cx="56" cy="55" rx="5.2" ry="3.2" fill="#FFC6D2"/>
-      <ellipse cx="31" cy="46" rx="2.7" ry="3.2" fill="#3C3C3C"/>
-      <ellipse cx="49" cy="46" rx="2.7" ry="3.2" fill="#3C3C3C"/>
-      <path d="M35 53.5 q2.5 4.2 5 0 q2.5 4.2 5 0" fill="none" stroke="#4A4A4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>`;
-  }
-  /* 우사기: 연노랑 둥근 얼굴 · 위로 길쭉한 토끼 귀 · 장난스러운 표정 */
-  return `<svg viewBox="0 0 80 80" role="img" aria-label="도은">
-      <ellipse cx="40" cy="72" rx="15" ry="3.2" fill="#E6D98F" opacity=".45"/>
-      <ellipse cx="31" cy="17" rx="5.6" ry="14.5" transform="rotate(-10 31 17)" fill="#FFF0A8" stroke="#E3C86A" stroke-width="2"/>
-      <ellipse cx="49" cy="17" rx="5.6" ry="14.5" transform="rotate(10 49 17)" fill="#FFF0A8" stroke="#E3C86A" stroke-width="2"/>
-      <ellipse cx="31" cy="18" rx="2.6" ry="9.5" transform="rotate(-10 31 18)" fill="#FFC9D4"/>
-      <ellipse cx="49" cy="18" rx="2.6" ry="9.5" transform="rotate(10 49 18)" fill="#FFC9D4"/>
-      <ellipse cx="40" cy="50" rx="23.5" ry="21" fill="#FFF0A8" stroke="#E3C86A" stroke-width="2.2"/>
-      <ellipse cx="24" cy="57" rx="5.2" ry="3.2" fill="#FFB9C8"/>
-      <ellipse cx="56" cy="57" rx="5.2" ry="3.2" fill="#FFB9C8"/>
-      <ellipse cx="31.5" cy="48" rx="3" ry="3.7" fill="#3C3C3C"/>
-      <ellipse cx="48.5" cy="48" rx="3" ry="3.7" fill="#3C3C3C"/>
-      <circle cx="32.7" cy="46.5" r="1.1" fill="#FFFFFF"/>
-      <circle cx="49.7" cy="46.5" r="1.1" fill="#FFFFFF"/>
-      <path d="M35 55 q5 6 10 0" fill="none" stroke="#8A6A3A" stroke-width="1.9" stroke-linecap="round"/>
-      <path d="M37.6 56.4 q2.4 3.4 4.8 0 Z" fill="#EF9AA6"/>
-    </svg>`;
+/* ============================== 아바타 (먼작귀 그림체 이미지) ============================== */
+/* 치이카와 · 하치와레 · 우사기 그림체로 그린 정사각형 그림을 assets/ 에 두고 씁니다.
+   큰 카드(.avatar), 작은 선택 버튼(.avatar-mini), 말풍선 옆(.msg .avatar)이 같은 그림을 쓰고,
+   동그랗게 잘라도 얼굴·귀가 잘리지 않게 여백을 넉넉히 둔 그림이에요. */
+const AVATARS = {
+  mom: { src: './assets/mom.png?v=6', label: '엄마' },
+  dowan: { src: './assets/dowan.png?v=6', label: '도완' },
+  doeun: { src: './assets/doeun.png?v=6', label: '도은' }
+};
+
+function avatarHTML(key) {
+  const a = AVATARS[key] || AVATARS.mom;
+  return `<img class="avatar-img" src="${a.src}" alt="${esc(a.label)}" width="320" height="320" decoding="async" draggable="false">`;
 }
 
 /* ============================== 상태 ============================== */
@@ -523,7 +480,7 @@ function renderWho() {
   if (!wrap) return;
   wrap.innerHTML = MEMBERS.map((m) => `
     <button class="pill" data-who="${esc(m.name)}" aria-pressed="${me === m.name}">
-      <span class="avatar-mini">${avatarSVG(m.key)}</span>${esc(m.name)}
+      <span class="avatar-mini">${avatarHTML(m.key)}</span>${esc(m.name)}
     </button>`).join('');
   const hint = $('whoHint');
   if (hint) {
@@ -547,7 +504,7 @@ function renderMembers() {
   wrap.innerHTML = MEMBERS.map((m) => `
     <div class="member ${m.key}">
       ${me === m.name ? '<span class="member-me">이 기기</span>' : ''}
-      <div class="avatar">${avatarSVG(m.key)}</div>
+      <div class="avatar">${avatarHTML(m.key)}</div>
       <div class="m-name">${esc(m.name)}</div>
       <div class="m-sub">${esc(m.role)}</div>
       <div class="m-stars"><span class="star">⭐</span><span>${starCount(m.name)}</span></div>
@@ -679,7 +636,7 @@ function renderChat() {
       bubble = `<div class="bubble ${emojiOnly ? 'sticker' : ''}">${esc(text)}</div>`;
     }
     return `<div class="msg ${isMine ? 'mine' : ''}">
-      <div class="avatar">${avatarSVG(m ? m.key : 'mom')}</div>
+      <div class="avatar">${avatarHTML(m ? m.key : 'mom')}</div>
       <div class="msg-body">
         <div class="msg-name">${esc(who)}</div>
         ${bubble}
