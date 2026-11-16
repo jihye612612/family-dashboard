@@ -113,10 +113,10 @@ function avatarSVG(key) {
     /* 치이카와: 포동포동 하얀 얼굴 · 작고 동그란 귀 · ω 입 */
     return `<svg viewBox="0 0 80 80" role="img" aria-label="엄마">
       <ellipse cx="40" cy="72" rx="15" ry="3.2" fill="#E4D5C4" opacity=".45"/>
-      <circle cx="24.5" cy="26" r="7.4" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2"/>
-      <circle cx="55.5" cy="26" r="7.4" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2"/>
-      <circle cx="24.5" cy="26" r="3.2" fill="#FFDCE3"/>
-      <circle cx="55.5" cy="26" r="3.2" fill="#FFDCE3"/>
+      <circle cx="25.5" cy="23.5" r="6.9" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2"/>
+      <circle cx="54.5" cy="23.5" r="6.9" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2"/>
+      <circle cx="25.5" cy="23.5" r="2.9" fill="#FFDCE3"/>
+      <circle cx="54.5" cy="23.5" r="2.9" fill="#FFDCE3"/>
       <ellipse cx="40" cy="47" rx="24.5" ry="22.5" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2.2"/>
       <ellipse cx="24" cy="54" rx="5.2" ry="3.2" fill="#FFC6D2"/>
       <ellipse cx="56" cy="54" rx="5.2" ry="3.2" fill="#FFC6D2"/>
