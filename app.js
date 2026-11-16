@@ -1462,6 +1462,7 @@ async function syncNow() {
   try {
     await pollOnce(false);
     await publish({ f: DEVICE, hello: 1 });
+    startStream();                                     // 실시간 연결도 새로 맺어 둬요
   } catch (e) {}
   buttons.forEach((b) => { b.classList.remove('spin'); b.disabled = false; });
 }
