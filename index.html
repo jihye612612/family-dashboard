@@ -9,7 +9,7 @@
 <meta name="description" content="우리 가족 기록장 - 가족 미션, 도장판, 채팅, 타이머">
 <title>우리 가족 기록장</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%8F%A1%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body class="locked">
 
@@ -131,7 +131,10 @@
   </section>
 
   <section class="card chat-card">
-    <h2 class="card-h"><span aria-hidden="true">💬</span> 가족 채팅방</h2>
+    <div class="card-h-row">
+      <h2 class="card-h"><span aria-hidden="true">💬</span> 가족 채팅방</h2>
+      <button class="sync-now" id="syncNow" type="button" aria-label="지금 동기화" title="지금 동기화">🔄</button>
+    </div>
     <div class="chat-log" id="chatLog"></div>
     <div class="stickers" id="stickers"></div>
     <form class="chat-form" id="chatForm" autocomplete="off">
@@ -206,13 +209,14 @@
 
       <div class="sheet-actions">
         <button class="btn ghost" id="soundTest">🔔 소리 테스트</button>
+        <button class="btn ghost" id="settingsSyncNow">🔄 지금 동기화</button>
         <button class="btn ghost danger" id="resetDevice">이 기기 기록 지우기</button>
       </div>
-      <p class="hint" id="syncInfo"></p>
+      <p class="hint sync-info" id="syncInfo"></p>
     </div>
   </div>
 </div>
 
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

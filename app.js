@@ -12,7 +12,7 @@ const ROOM_PREFIX = 'pkf-';                       // 만들어지는 방 이름 
 const ROOM_KEY_HEX = 28;                          // 방 이름에 쓰는 해시 길이
 const MIN_PW_LEN = 4;                             // 가족 비밀번호 최소 길이
 const WIRE_MAX_BYTES = 3900;                      // ntfy 메시지 한도(4096B) 여유
-const POLL_MS = 6000;                             // 실시간 연결이 끊겼을 때 폴링 간격
+const POLL_MS = 6000;                             // 안전망 폴링 간격 (SSE가 붙어 있어도 계속 돌려요)
 const PHOTO_MAX_PX = 960;                         // 사진은 긴 쪽 960px까지만 줄여서 올려요
 const PHOTO_QUALITY = 0.78;                       // JPEG 품질 (휴대폰 사진도 1초 안에 올라가요)
 const PHOTO_TOPIC_TAIL = '-files';                // 사진은 채팅 주제 대신 사진 전용 주제로 올려요
@@ -272,7 +272,18 @@ let pubBusy = false;
 let pendingPublish = false;
 let lastSyncAt = 0;
 let helloAt = 0;
+let lastPubTry = 0;
 let statusMode = 'wait';
+
+/* 두 기기가 같은 방에 있는지 눈으로 대조하는 코드: 방 이름 끝 4자리 (#xxxx) */
+function roomTag() {
+  return room ? '#' + room.slice(-4) : '';
+}
+
+function withRoomTag(text) {
+  const tag = roomTag();
+  return tag ? `${text} · ${tag}` : text;
+}
 
 function setStatus(mode, text) {
   statusMode = mode;
@@ -281,9 +292,9 @@ function setStatus(mode, text) {
   el.classList.remove('on', 'off', 'flash');
   if (mode === 'on' || mode === 'flash') el.classList.add('on');
   if (mode === 'off') el.classList.add('off');
-  el.textContent = text || (mode === 'on' ? '가족과 연결됨'
+  el.textContent = withRoomTag(text || (mode === 'on' ? '가족과 연결됨'
     : mode === 'off' ? '오프라인 — 이 기기에 저장 중'
-    : '연결 중…');
+    : room ? '연결 중…' : '가족 비밀번호를 넣어 주세요'));
   renderSyncInfo();
 }
 
@@ -341,6 +352,7 @@ async function publish(payloadExtra) {
     const body = payloadExtra
       ? JSON.stringify(payloadExtra)
       : JSON.stringify({ f: DEVICE, t: now(), s: wireState(WIRE_MAX_BYTES) });
+    lastPubTry = now();
     const res = await fetch(`${NTFY}/${encodeURIComponent(room)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
@@ -408,16 +420,24 @@ async function pollOnce(initial) {
     lastSyncAt = now();
     setStatus('on');
     renderSyncInfo();
+    // 연결이 살아 있으니, 못 올린 기록이 있으면 다시 올려요 (10초에 한 번까지만)
+    if (pendingPublish && now() - lastPubTry > 10000) schedulePublish(0);
   } catch (e) {
     setStatus('off');
   }
+}
+
+/* 화면이 보이는 동안 계속 도는 안전망 폴링 (이미 돌고 있으면 아무 것도 하지 않아요) */
+function keepPollingAlive() {
+  if (!room || pollTimer) return;
+  pollTimer = setInterval(() => { if (!document.hidden) pollOnce(false); }, POLL_MS);
 }
 
 function startPolling() {
   if (!room) return;
   if (pollTimer) return;
   pollOnce(false);
-  pollTimer = setInterval(() => { if (!document.hidden) pollOnce(false); }, POLL_MS);
+  keepPollingAlive();
 }
 
 function stopPolling() {
@@ -435,9 +455,10 @@ function startStream() {
     startPolling();
     return;
   }
+  keepPollingAlive();                                  // SSE와 별개로 안전망 폴링을 계속 돌려요
   sse.onopen = () => {
     sseFailures = 0;
-    stopPolling();
+    keepPollingAlive();                                // 모바일에서 SSE가 조용히 멈춰도 폴링이 받아와요
     lastSyncAt = now();
     setStatus('on');
     renderSyncInfo();
@@ -656,9 +677,9 @@ function renderSyncInfo() {
   const info = $('syncInfo');
   if (!info) return;
   if (!room) { info.textContent = '아직 가족 방에 연결하지 않았어요'; return; }
-  info.textContent = lastSyncAt
-    ? `마지막 동기화 ${hhmm(lastSyncAt)} · 가족 방 연결됨`
-    : '가족 방에 연결하는 중…';
+  const last = lastSyncAt ? `마지막 동기화 ${hhmm(lastSyncAt)}` : '가족 방에 연결하는 중';
+  info.textContent = `${last} · 우리 방 ${roomTag()}\n`
+    + '가족 기기 모두 이 코드가 같아야 채팅이 함께 보여요. 코드가 다르면 서로 다른 비밀번호로 들어온 거예요.';
 }
 
 function pruneCheck() {
@@ -1099,12 +1120,22 @@ function bindEvents() {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      if (!sse || sse.readyState !== EventSource.OPEN) pollOnce(false);
-      loadWeather(false);
-    }
+    if (document.hidden) return;
+    // 화면이 다시 보이면 조건 없이 바로 받아오고, 실시간 연결도 새로 맺어요.
+    // (모바일은 EventSource가 조용히 멈춰도 readyState가 OPEN으로 남아 있어요.)
+    pollOnce(false);
+    startStream();
+    loadWeather(false);
   });
-  window.addEventListener('online', () => { if (pendingPublish) schedulePublish(100); });
+  window.addEventListener('online', () => {
+    pollOnce(false);
+    startStream();
+    if (pendingPublish) schedulePublish(100);
+  });
+  const syncBtn = $('syncNow');
+  if (syncBtn) syncBtn.addEventListener('click', syncNow);
+  const settingsSyncBtn = $('settingsSyncNow');
+  if (settingsSyncBtn) settingsSyncBtn.addEventListener('click', syncNow);
 }
 
 function hintWho() {
@@ -1420,6 +1451,19 @@ function startApp() {
   setInterval(() => { loadWeather(false); }, 20 * 60 * 1000);
   setInterval(bedCheck, 1000);
   bedCheck();
+}
+
+/* 지금 동기화: 한 번 받아오고(pollOnce) 가족에게 "지금 상태 알려줘"를 보내요 */
+async function syncNow() {
+  if (!room) { setStatus('wait', '가족 비밀번호를 넣어 주세요'); return; }
+  const buttons = [$('syncNow'), $('settingsSyncNow')].filter(Boolean);
+  buttons.forEach((b) => { b.classList.add('spin'); b.disabled = true; });
+  setStatus('wait', '지금 동기화 중…');
+  try {
+    await pollOnce(false);
+    await publish({ f: DEVICE, hello: 1 });
+  } catch (e) {}
+  buttons.forEach((b) => { b.classList.remove('spin'); b.disabled = false; });
 }
 
 /* 동기화 시작: 최근 12시간 기록 받아 병합 → 실시간 연결 */
