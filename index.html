@@ -9,7 +9,7 @@
 <meta name="description" content="우리 가족 기록장 - 가족 미션, 도장판, 채팅, 타이머">
 <title>우리 가족 기록장</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%8F%A1%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=4">
+<link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body class="locked">
 
@@ -140,11 +140,12 @@
     <form class="chat-form" id="chatForm" autocomplete="off">
       <input type="file" id="photoInput" accept="image/*" hidden>
       <button class="photo-btn" id="photoBtn" type="button" aria-label="사진 보내기" title="사진 보내기">📷</button>
+      <button class="voice-btn" id="voiceBtn" type="button" aria-label="음성메시지 녹음" title="음성메시지 보내기">🎙️</button>
       <input id="chatInput" placeholder="메시지를 남겨 보세요" maxlength="200">
       <button class="btn primary" type="submit">보내기</button>
     </form>
     <p class="photo-note" id="photoNote" role="status" aria-live="polite" hidden></p>
-    <p class="hint">📷 버튼을 누르면 사진을 보낼 수 있어요. 사진은 3시간만 보관돼요.</p>
+    <p class="hint">📷 버튼은 사진, 🎙️ 버튼은 음성메시지예요. 둘 다 3시간만 보관돼요.</p>
   </section>
 
   <footer class="foot">
@@ -217,6 +218,6 @@
   </div>
 </div>
 
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

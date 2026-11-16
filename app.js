@@ -104,55 +104,61 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) {} }
 };
 
-/* ============================== 아바타 (직접 그린 SVG) ============================== */
+/* ============================== 아바타 (먼작귀 스타일 SVG) ============================== */
+/* 치이카와 · 하치와레 · 우사기 느낌으로 80×80 상자 안에 그렸어요.
+   큰 카드(.avatar)와 작은 선택 버튼(.avatar-mini), 말풍선 옆(.msg .avatar)에서
+   모두 같은 그림을 쓰기 때문에 여백을 6~74 안쪽으로 잡았습니다. */
 function avatarSVG(key) {
   if (key === 'mom') {
-    return `<svg viewBox="0 0 100 100" role="img" aria-label="엄마">
-      <ellipse cx="50" cy="90" rx="24" ry="5" fill="#E8D6C4" opacity=".45"/>
-      <path d="M27 33 L20 11 L45 23 Z" fill="#FFFCF6" stroke="#E7D3C0" stroke-width="2.4" stroke-linejoin="round"/>
-      <path d="M73 33 L80 11 L55 23 Z" fill="#FFFCF6" stroke="#E7D3C0" stroke-width="2.4" stroke-linejoin="round"/>
-      <path d="M28 30 L23.6 15.5 L38 24 Z" fill="#FBD3D8"/>
-      <path d="M72 30 L76.4 15.5 L62 24 Z" fill="#FBD3D8"/>
-      <circle cx="50" cy="53" r="29" fill="#FFFCF6" stroke="#E7D3C0" stroke-width="2.4"/>
-      <ellipse cx="32" cy="61" rx="6.4" ry="4.4" fill="#FBC6CE" opacity=".85"/>
-      <ellipse cx="68" cy="61" rx="6.4" ry="4.4" fill="#FBC6CE" opacity=".85"/>
-      <ellipse cx="39" cy="53" rx="3.3" ry="4.1" fill="#4E423A"/>
-      <ellipse cx="61" cy="53" rx="3.3" ry="4.1" fill="#4E423A"/>
-      <path d="M46 62 q4 4.5 8 0" stroke="#4E423A" stroke-width="1.9" fill="none" stroke-linecap="round"/>
-      <g transform="translate(72 28)">
-        <circle r="2.6" fill="#F7A8B4"/>
-        <path d="M-2.6 0 l-6 -4.4 v8.8 z" fill="#F7A8B4"/>
-        <path d="M2.6 0 l6 -4.4 v8.8 z" fill="#F7A8B4"/>
-      </g>
+    /* 치이카와: 포동포동 하얀 얼굴 · 작고 동그란 귀 · ω 입 */
+    return `<svg viewBox="0 0 80 80" role="img" aria-label="엄마">
+      <ellipse cx="40" cy="73" rx="16" ry="3.4" fill="#E4D5C4" opacity=".45"/>
+      <circle cx="21" cy="27" r="9.6" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2"/>
+      <circle cx="59" cy="27" r="9.6" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2"/>
+      <circle cx="21" cy="27" r="4.4" fill="#FFDCE3"/>
+      <circle cx="59" cy="27" r="4.4" fill="#FFDCE3"/>
+      <ellipse cx="40" cy="46" rx="25" ry="23" fill="#FFFFFF" stroke="#7E7E7E" stroke-width="2.2"/>
+      <ellipse cx="23.5" cy="53" rx="5.4" ry="3.4" fill="#FFC6D2"/>
+      <ellipse cx="56.5" cy="53" rx="5.4" ry="3.4" fill="#FFC6D2"/>
+      <ellipse cx="31" cy="43.5" rx="2.7" ry="3.2" fill="#3C3C3C"/>
+      <ellipse cx="49" cy="43.5" rx="2.7" ry="3.2" fill="#3C3C3C"/>
+      <path d="M34 51.5 q3 4.4 6 0 q3 4.4 6 0" fill="none" stroke="#4A4A4A" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>`;
   }
   if (key === 'dowan') {
-    return `<svg viewBox="0 0 100 100" role="img" aria-label="도완">
-      <ellipse cx="50" cy="90" rx="23" ry="5" fill="#E8D6A8" opacity=".45"/>
-      <circle cx="50" cy="55" r="29" fill="#FFF6CD" stroke="#EBD79A" stroke-width="2.4"/>
-      <path d="M49 26 q2 -9 9 -12 q-2 7 0 12" fill="#FFE79B" stroke="#EBD79A" stroke-width="2" stroke-linejoin="round"/>
-      <path d="M47 24 q13 -16 26 -8 q-11 12 -26 8 z" fill="#A6D89C" stroke="#84C179" stroke-width="2" stroke-linejoin="round"/>
-      <ellipse cx="31" cy="62" rx="6" ry="4.2" fill="#F7C6A0" opacity=".8"/>
-      <ellipse cx="69" cy="62" rx="6" ry="4.2" fill="#F7C6A0" opacity=".8"/>
-      <ellipse cx="40" cy="54" rx="3.3" ry="4.1" fill="#4E423A"/>
-      <ellipse cx="60" cy="54" rx="3.3" ry="4.1" fill="#4E423A"/>
-      <path d="M46 63 l4 5 l4 -5 z" fill="#F0A94E"/>
-      <path d="M52 63.5 q5 2 8 -1" stroke="#E39A3E" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    /* 하치와레: 하얀 얼굴 · 하늘색 뾰족 고양이 귀 · 이마 양갈래 가르마 */
+    return `<svg viewBox="0 0 80 80" role="img" aria-label="도완">
+      <ellipse cx="40" cy="73" rx="16" ry="3.4" fill="#CFE2F0" opacity=".5"/>
+      <path d="M24 36 Q19 22 21.5 10 Q28 14 34 21 Q40 26 43 28 Z" fill="#7EC8F2" stroke="#7EC8F2" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M56 36 Q61 22 58.5 10 Q52 14 46 21 Q40 26 37 28 Z" fill="#7EC8F2" stroke="#7EC8F2" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M26.5 31 Q23.5 21 25 14 Q29.5 17.5 33.5 22.5 Z" fill="#FFD6E0"/>
+      <path d="M53.5 31 Q56.5 21 55 14 Q50.5 17.5 46.5 22.5 Z" fill="#FFD6E0"/>
+      <ellipse cx="40" cy="47" rx="25" ry="22.5" fill="#FFFFFF" stroke="#9CB9C9" stroke-width="2.2"/>
+      <path d="M40 25.5 C34 26.6 29.2 31.2 27.2 38.4 C31.4 33.6 35.6 31.2 40 30.4 Z" fill="#7EC8F2"/>
+      <path d="M40 25.5 C46 26.6 50.8 31.2 52.8 38.4 C48.6 33.6 44.4 31.2 40 30.4 Z" fill="#7EC8F2"/>
+      <ellipse cx="24" cy="54" rx="5.2" ry="3.2" fill="#FFC6D2"/>
+      <ellipse cx="56" cy="54" rx="5.2" ry="3.2" fill="#FFC6D2"/>
+      <ellipse cx="31" cy="44" rx="2.7" ry="3.2" fill="#3C3C3C"/>
+      <ellipse cx="49" cy="44" rx="2.7" ry="3.2" fill="#3C3C3C"/>
+      <path d="M35 51.5 q2.5 4.2 5 0 q2.5 4.2 5 0" fill="none" stroke="#4A4A4A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>`;
   }
-  return `<svg viewBox="0 0 100 100" role="img" aria-label="도은">
-      <ellipse cx="50" cy="90" rx="22" ry="5" fill="#BFD9C9" opacity=".4"/>
-      <path d="M38 34 q-7 -24 1 -26 q8 -2 8.5 24" fill="#EAF9F0" stroke="#BFE3CD" stroke-width="2.4" stroke-linejoin="round"/>
-      <path d="M62 34 q7 -24 -1 -26 q-8 -2 -8.5 24" fill="#EAF9F0" stroke="#BFE3CD" stroke-width="2.4" stroke-linejoin="round"/>
-      <path d="M40 28 q-4 -16 0 -18 q4 -1 4.5 16" fill="#FBD3D8"/>
-      <path d="M60 28 q4 -16 0 -18 q-4 -1 -4.5 16" fill="#FBD3D8"/>
-      <circle cx="50" cy="57" r="27" fill="#EFFBF4" stroke="#BFE3CD" stroke-width="2.4"/>
-      <ellipse cx="33" cy="64" rx="5.8" ry="4" fill="#FBD3D8" opacity=".85"/>
-      <ellipse cx="67" cy="64" rx="5.8" ry="4" fill="#FBD3D8" opacity=".85"/>
-      <ellipse cx="41" cy="57" rx="3.2" ry="4" fill="#4E423A"/>
-      <ellipse cx="59" cy="57" rx="3.2" ry="4" fill="#4E423A"/>
-      <path d="M47 65 q3 3.5 6 0" stroke="#4E423A" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-      <path d="M72 40 l2.4 4.8 5.3.7 -4 3.6 1 5.2 -4.7-2.5 -4.7 2.5 1-5.2 -4-3.6 5.3-.7 z" fill="#FFE182" stroke="#EFC94F" stroke-width="1.2" stroke-linejoin="round"/>
+  /* 우사기: 연노랑 둥근 얼굴 · 위로 길쭉한 토끼 귀 · 장난스러운 표정 */
+  return `<svg viewBox="0 0 80 80" role="img" aria-label="도은">
+      <ellipse cx="40" cy="73" rx="15" ry="3.2" fill="#E6D98F" opacity=".45"/>
+      <path d="M31 33 C24.5 21 24.5 8 30 4.5 C36 1 37 18 36.5 33 Z" fill="#FFF0A8" stroke="#E3C86A" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M49 33 C55.5 21 55.5 8 50 4.5 C44 1 43 18 43.5 33 Z" fill="#FFF0A8" stroke="#E3C86A" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M32 29 C28.5 19 29 10.5 31.5 9 C34 7.5 34.5 19 33.8 29 Z" fill="#FFC9D4"/>
+      <path d="M48 29 C51.5 19 51 10.5 48.5 9 C46 7.5 45.5 19 46.2 29 Z" fill="#FFC9D4"/>
+      <ellipse cx="40" cy="50" rx="23.5" ry="21" fill="#FFF0A8" stroke="#E3C86A" stroke-width="2.2"/>
+      <ellipse cx="24" cy="57" rx="5.2" ry="3.2" fill="#FFB9C8"/>
+      <ellipse cx="56" cy="57" rx="5.2" ry="3.2" fill="#FFB9C8"/>
+      <ellipse cx="31.5" cy="47" rx="3" ry="3.7" fill="#3C3C3C"/>
+      <ellipse cx="48.5" cy="47" rx="3" ry="3.7" fill="#3C3C3C"/>
+      <circle cx="32.7" cy="45.5" r="1.1" fill="#FFFFFF"/>
+      <circle cx="49.7" cy="45.5" r="1.1" fill="#FFFFFF"/>
+      <path d="M35 55 q5 6 10 0" fill="none" stroke="#8A6A3A" stroke-width="1.9" stroke-linecap="round"/>
+      <path d="M37.6 56.4 q2.4 3.4 4.8 0 Z" fill="#EF9AA6"/>
     </svg>`;
 }
 
@@ -644,20 +650,34 @@ function renderChat() {
     const ts = d[1];
     const text = typeof d[2] === 'string' ? d[2] : '';
     const photo = safePhotoUrl(d[3]);          // 네 번째 칸: ntfy에 올린 사진 주소
+    const voice = safePhotoUrl(d[4]);          // 다섯 번째 칸: ntfy에 올린 음성메시지 주소
+    const voiceSec = Math.max(0, Math.round(Number(d[5]) || 0));  // 여섯 번째 칸: 길이(초)
     const m = memberByName(who);
     const isMine = who === me;
     const reactions = state.reacts[id] || [];
-    const emojiOnly = !photo && text.length > 0 && text.length <= 6
+    const emojiOnly = !photo && !voice && text.length > 0 && text.length <= 6
       && [...text].every((ch) => ch.codePointAt(0) > 0x2000);
-    const bubble = photo
-      ? `<div class="bubble photo">
-          <a class="photo-link" href="${esc(photo)}" data-photo="${esc(id)}" target="_blank" rel="noopener">
+    let bubble;
+    if (photo || voice) {
+      const parts = [];
+      if (photo) {
+        parts.push(`<a class="photo-link" href="${esc(photo)}" data-photo="${esc(id)}" target="_blank" rel="noopener">
             <img class="chat-photo" src="${esc(photo)}" alt="${esc(who)}님이 보낸 사진" loading="lazy">
             <span class="photo-gone">만료된 사진이에요 (${PHOTO_KEEP_HOURS}시간 보관)</span>
-          </a>
-          ${text ? `<div class="photo-cap">${esc(text)}</div>` : ''}
-        </div>`
-      : `<div class="bubble ${emojiOnly ? 'sticker' : ''}">${esc(text)}</div>`;
+          </a>`);
+      }
+      if (voice) {
+        parts.push(`<div class="voice-wrap">
+            <div class="voice-label">🎙️ 음성메시지 (${voiceSecLabel(voiceSec)})</div>
+            <audio class="chat-voice" controls preload="metadata" src="${esc(voice)}"></audio>
+            <span class="voice-gone">⏳ ${VOICE_KEEP_HOURS}시간이 지나 만료된 음성메시지예요</span>
+          </div>`);
+      }
+      if (text) parts.push(`<div class="photo-cap">${esc(text)}</div>`);
+      bubble = `<div class="bubble media ${photo ? 'photo' : ''}">${parts.join('')}</div>`;
+    } else {
+      bubble = `<div class="bubble ${emojiOnly ? 'sticker' : ''}">${esc(text)}</div>`;
+    }
     return `<div class="msg ${isMine ? 'mine' : ''}">
       <div class="avatar">${avatarSVG(m ? m.key : 'mom')}</div>
       <div class="msg-body">
@@ -1010,14 +1030,28 @@ function bindEvents() {
   });
   // 사진이 만료됐거나 지워졌을 때 안내로 바꿔 줍니다
   $('chatLog').addEventListener('error', (e) => {
-    const img = e.target;
-    if (!img || !img.classList || !img.classList.contains('chat-photo')) return;
+    const el = e.target;
+    if (!el || !el.classList) return;
+    // 음성메시지는 3시간이 지나면 재생 대신 만료 안내로 바뀌어요
+    if (el.classList.contains('chat-voice')) {
+      const wrap = el.closest ? el.closest('.voice-wrap') : null;
+      if (wrap) {
+        wrap.classList.add('gone');
+        el.removeAttribute('src');
+        try { el.load(); } catch (err) {}
+      }
+      return;
+    }
+    const img = el;
+    if (!img.classList.contains('chat-photo')) return;
     const link = img.closest ? img.closest('.photo-link') : null;
     if (!link) return;
     link.classList.add('gone');
     link.removeAttribute('href');
     link.removeAttribute('data-photo');
   }, true);
+  // 음성메시지 녹음·보내기
+  $('voiceBtn').addEventListener('click', toggleVoice);
   // 사진 크게 보기 — 열기 / 닫기
   $('photoView').addEventListener('click', (e) => {
     if (e.target.id === 'photoView' || e.target.id === 'photoViewClose') closePhotoView();
@@ -1145,15 +1179,20 @@ function hintWho() {
   $('whoPills').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function sendChat(text, isSticker, photoUrl) {
+function sendChat(text, isSticker, photoUrl, voiceUrl, voiceSec) {
   const t = (text || '').trim();
   const photo = safePhotoUrl(photoUrl);
-  if (!t && !photo) return;
+  const voice = safePhotoUrl(voiceUrl);
+  if (!t && !photo && !voice) return;
   const me = getMe();
   if (!me) { hintWho(); return; }
   const id = ri();
   const entry = [me, now(), t.slice(0, 200)];
   if (photo) entry[3] = photo;         // 네 번째 칸: 사진 주소 (글 없이 사진만 보낸 경우 text는 빈 문자열)
+  if (voice) {                         // 다섯·여섯 번째 칸: 음성메시지 주소와 길이(초)
+    entry[4] = voice;
+    entry[5] = Math.max(0, Math.round(Number(voiceSec) || 0));
+  }
   state.chat[id] = entry;
   saveState();
   renderChat();
@@ -1285,6 +1324,229 @@ async function sendPhotoFile(file) {
     photoBusyUI(false);
     photoNote('사진을 올리지 못했어요. 잠시 뒤 다시 해 보세요');
   }
+}
+
+/* ============================== 채팅 음성메시지 ============================== */
+/* ① 마이크로 그대로 녹음해 ② 사진과 같은 ntfy 파일 주제(`방이름-files`)에 PUT으로 올리고
+   ③ 돌려받은 주소만 채팅 다섯 번째 칸에 넣어 보냅니다.
+   ntfy가 3시간만 보관하므로, 그 뒤에 열면 앱이 "만료된 음성메시지" 안내를 보여 줍니다. */
+const VOICE_MAX_SEC = 60;                            // 한 번에 녹음할 수 있는 최대 길이
+const VOICE_KEEP_HOURS = 3;                          // ntfy에 음성이 보관되는 시간
+const VOICE_TYPES = [                                // 휴대폰·아이폰·크롬에서 고를 수 있는 형식
+  'audio/mp4',
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/ogg'
+];
+
+const voiceRec = {
+  rec: null, stream: null, chunks: [], startedAt: 0, sec: 0,
+  timer: null, busy: false, finishing: false
+};
+
+function voiceSecLabel(sec) {
+  const s = Math.max(0, Math.round(Number(sec) || 0));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function voiceSupported() {
+  return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+/* 기기가 받아 주는 녹음 형식을 찾아 옵니다 (아이폰은 mp4, 안드로이드·크롬은 webm) */
+function pickVoiceMime() {
+  const MR = window.MediaRecorder;
+  if (!MR) return '';
+  if (typeof MR.isTypeSupported !== 'function') return '';
+  for (let i = 0; i < VOICE_TYPES.length; i++) {
+    if (MR.isTypeSupported(VOICE_TYPES[i])) return VOICE_TYPES[i];
+  }
+  return '';
+}
+
+function voiceBtnDraw() {
+  const btn = $('voiceBtn');
+  if (!btn) return;
+  const recording = !!(voiceRec.rec && voiceRec.rec.state === 'recording');
+  if (recording) {
+    btn.classList.add('rec');
+    btn.classList.remove('busy');
+    btn.textContent = '⏹️ ' + voiceSecLabel(voiceRec.sec);
+    btn.setAttribute('aria-label', '녹음 끝내고 보내기');
+    btn.setAttribute('title', '녹음 끝내고 보내기');
+  } else if (voiceRec.busy) {
+    btn.classList.remove('rec');
+    btn.classList.add('busy');
+    btn.textContent = '⏳';
+    btn.setAttribute('aria-label', '음성메시지 올리는 중');
+    btn.setAttribute('title', '음성메시지 올리는 중');
+  } else {
+    btn.classList.remove('rec');
+    btn.classList.remove('busy');
+    btn.textContent = '🎙️';
+    btn.setAttribute('aria-label', '음성메시지 녹음');
+    btn.setAttribute('title', '음성메시지 보내기');
+  }
+}
+
+function stopVoiceTracks() {
+  if (voiceRec.stream) {
+    try { voiceRec.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+  }
+  voiceRec.stream = null;
+}
+
+async function startVoice() {
+  if (!room || voiceRec.busy) return;
+  photoNote('');
+  if (!voiceSupported()) {
+    photoNote('이 브라우저에서는 음성메시지를 녹음할 수 없어요. https 주소로 휴대폰 크롬·사파리에서 열어 주세요');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    const name = (err && err.name) || '';
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      photoNote('마이크 사용을 허용해 주세요. 주소창 옆 🔒 에서 마이크를 켜면 녹음할 수 있어요');
+    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      photoNote('마이크를 찾지 못했어요. 마이크가 있는 기기에서 다시 해 봐요');
+    } else {
+      photoNote('마이크를 켜지 못했어요. 잠시 뒤 다시 해 보세요');
+    }
+    return;
+  }
+
+  const mime = pickVoiceMime();
+  let rec = null;
+  try {
+    rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+  } catch (e) {
+    try { rec = new MediaRecorder(stream); } catch (e2) { rec = null; }
+  }
+  if (!rec) {
+    stopVoiceTracks();
+    photoNote('녹음을 시작하지 못했어요. 잠시 뒤 다시 해 보세요');
+    return;
+  }
+
+  voiceRec.stream = stream;
+  voiceRec.rec = rec;
+  voiceRec.chunks = [];
+  voiceRec.sec = 0;
+  voiceRec.startedAt = now();
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) voiceRec.chunks.push(e.data); };
+  rec.onstop = () => { finishVoice(); };
+  try {
+    rec.start(250);                                    // 0.25초마다 조각을 모아요
+  } catch (e) {
+    voiceRec.rec = null;
+    stopVoiceTracks();
+    photoNote('녹음을 시작하지 못했어요. 잠시 뒤 다시 해 보세요');
+    return;
+  }
+
+  audio();
+  beep(880, 0.08);
+  photoNote(`녹음 중… 다 말했으면 🎙️ 를 다시 눌러 주세요 (최대 ${VOICE_MAX_SEC}초)`);
+  voiceBtnDraw();
+  voiceRec.timer = setInterval(() => {
+    voiceRec.sec = (now() - voiceRec.startedAt) / 1000;
+    if (voiceRec.sec >= VOICE_MAX_SEC) {
+      voiceRec.sec = VOICE_MAX_SEC;
+      stopVoice();
+      return;
+    }
+    voiceBtnDraw();
+  }, 200);
+}
+
+function stopVoice() {
+  const rec = voiceRec.rec;
+  clearInterval(voiceRec.timer);
+  voiceRec.timer = null;
+  if (voiceRec.startedAt) {
+    voiceRec.sec = Math.min(VOICE_MAX_SEC, (now() - voiceRec.startedAt) / 1000);
+  }
+  if (!rec) { finishVoice(); return; }
+  if (rec.state === 'inactive') { finishVoice(); return; }
+  try { rec.stop(); } catch (e) { finishVoice(); }
+}
+
+async function finishVoice() {
+  if (voiceRec.finishing) return;
+  voiceRec.finishing = true;
+  try {
+    const rec = voiceRec.rec;
+    const mime = (rec && rec.mimeType) || 'audio/webm';
+    const sec = Math.max(1, Math.round(voiceRec.sec));
+    voiceRec.rec = null;
+    clearInterval(voiceRec.timer);
+    voiceRec.timer = null;
+    voiceRec.startedAt = 0;
+    stopVoiceTracks();
+    const blob = new Blob(voiceRec.chunks, { type: String(mime).split(';')[0] || 'audio/webm' });
+    voiceRec.chunks = [];
+    if (!blob.size) {
+      voiceBtnDraw();
+      photoNote('녹음된 소리가 없어요. 다시 한 번 말해 볼까요?');
+      return;
+    }
+    voiceRec.busy = true;
+    voiceBtnDraw();
+    photoNote('음성메시지 올리는 중…');
+    let url;
+    try {
+      url = await putVoice(blob, mime);
+    } catch (e) {
+      voiceRec.busy = false;
+      voiceBtnDraw();
+      photoNote('음성메시지를 올리지 못했어요. 잠시 뒤 다시 해 보세요');
+      return;
+    }
+    voiceRec.busy = false;
+    voiceBtnDraw();
+    photoNote('');
+    sendChat('', false, '', url, sec);
+  } finally {
+    voiceRec.finishing = false;
+  }
+}
+
+/* 사진과 같은 파일 주제에 올리고 주소를 돌려받습니다 */
+function putVoice(blob, mime) {
+  return new Promise((resolve, reject) => {
+    if (!room) { reject(new Error('locked')); return; }
+    const topic = room + PHOTO_TOPIC_TAIL;
+    const base = String(mime || '').split(';')[0].trim().toLowerCase();
+    const ext = base === 'audio/mp4' ? 'm4a'
+      : base === 'audio/ogg' ? 'ogg'
+      : base === 'audio/mpeg' ? 'mp3'
+      : 'webm';
+    const type = base || 'audio/webm';
+    const name = 'voice-' + Date.now().toString(36) + '.' + ext;
+    fetch(NTFY + '/' + encodeURIComponent(topic), {
+      method: 'PUT',
+      headers: { 'Filename': name, 'Content-Type': type },
+      body: blob
+    }).then((res) => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then((obj) => {
+      const url = obj && obj.attachment && obj.attachment.url ? String(obj.attachment.url) : '';
+      if (!safePhotoUrl(url)) throw new Error('no-url');
+      resolve(url);
+    }).catch(reject);
+  });
+}
+
+/* 🎙️ 한 번: 녹음 시작 / 다시 한 번: 녹음 끝내고 바로 보내기 */
+function toggleVoice() {
+  if (!room) return;
+  if (!getMe()) { hintWho(); return; }
+  if (voiceRec.rec && voiceRec.rec.state === 'recording') stopVoice();
+  else if (!voiceRec.busy) startVoice();
 }
 
 /* 시진 크게 보기 */
