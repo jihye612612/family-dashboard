@@ -214,7 +214,7 @@ function pruneForStore(s) {
       : { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }
   };
   const ids = Object.keys(s.chat).sort((a, b) => s.chat[b][1] - s.chat[a][1]);
-  ids.slice(0, 60).forEach((id) => {
+  ids.slice(0, 300).forEach((id) => {          // 이 기기에는 300개까지 남겨 두고, 보여 줄 때 40개씩 늘려요
     out.chat[id] = s.chat[id];
     if (s.reacts[id]) out.reacts[id] = s.reacts[id];
   });
@@ -889,22 +889,30 @@ function renderCalendar() {
 
 let viewMonth = new Date();
 
+let chatShowLimit = 40;        // 채팅창에 보여 줄 대화 수 ("더 보기"로 40개씩 늘려요)
+let chatKeepScroll = false;    // 더 보기를 누를 때 보던 위치를 지키려고
+
 function renderChat() {
   const log = $('chatLog');
   if (!log) return;
   const me = getMe();
-  const msgs = Object.keys(state.chat)
+  const all = Object.keys(state.chat)
     .map((id) => ({ id, d: state.chat[id] }))
-    .sort((a, b) => a.d[1] - b.d[1])
-    .slice(-40);
+    .sort((a, b) => a.d[1] - b.d[1]);
+  const msgs = all.slice(-chatShowLimit);
+  const hiddenCount = all.length - msgs.length;
 
+  const fromBottom = log.scrollHeight - log.scrollTop;
   const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
 
   if (!msgs.length) {
     log.innerHTML = `<div class="chat-empty">아직 대화가 없어요. 첫 인사를 남겨 보세요 💬</div>`;
     return;
   }
-  log.innerHTML = msgs.map(({ id, d }) => {
+  const moreBtn = hiddenCount > 0
+    ? `<button class="chat-more" type="button" data-more="1">📜 이전 대화 더 보기 (${hiddenCount}개 더 있음)</button>`
+    : '';
+  log.innerHTML = moreBtn + msgs.map(({ id, d }) => {
     const who = d[0];
     const ts = d[1];
     const text = typeof d[2] === 'string' ? d[2] : '';
@@ -949,7 +957,12 @@ function renderChat() {
       </div>
     </div>`;
   }).join('');
-  if (nearBottom) log.scrollTop = log.scrollHeight;
+  if (chatKeepScroll) {
+    chatKeepScroll = false;
+    log.scrollTop = Math.max(0, log.scrollHeight - fromBottom);   // 보던 대화가 그 자리에 머물도록
+  } else if (nearBottom) {
+    log.scrollTop = log.scrollHeight;
+  }
 }
 
 function renderSyncInfo() {
@@ -1849,6 +1862,14 @@ function bindEvents() {
     if (e.target.id === 'photoView' || e.target.id === 'photoViewClose') closePhotoView();
   });
   $('chatLog').addEventListener('click', (e) => {
+    const more = e.target.closest('[data-more]');
+    if (more) {
+      chatShowLimit += 40;
+      chatKeepScroll = true;
+      renderChat();
+      beep(880, 0.08);
+      return;
+    }
     const ph = e.target.closest('[data-photo]');
     if (ph) {
       e.preventDefault();
