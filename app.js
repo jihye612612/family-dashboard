@@ -36,7 +36,8 @@ const LS = {
   prepStart: 'fd_prep_start',                     // 준비 시작 시각 (기본 07:30)
   prepEnd: 'fd_prep_end',                         // 출발 시각 (기본 08:10)
   prepWeekday: 'fd_prep_weekday',                 // 평일만 볼지 (기본 켜짐)
-  prepDismiss: 'fd_prep_dismiss'                  // "잠깐 보기"로 잠시 닫아 둔 때 (그 시간대 끝까지)
+  prepDismiss: 'fd_prep_dismiss',                 // "잠깐 보기"로 잠시 닫아 둔 때 (그 시간대 끝까지)
+  notifyOn: 'fd_notify_on'                        // 새 대화 알림 켜기/끄기 (이 기기에서만)
 };
 
 const MEMBERS = [
@@ -292,6 +293,175 @@ function mergeState(target, incoming) {
   return changes;
 }
 
+/* ============================== 새 대화 알림 ============================== */
+/* 다른 기기에서 새 채팅이나 준비물 요청이 오면 ① 알림음 ② 브라우저 상단 알림 ③ 탭 제목으로 알려 줘요.
+   처음 화면에 들어와 최근 12시간 기록을 받아올 때는 이미 지나간 대화라 울리지 않고(notifyArmed = false),
+   화면에 다 받아 둔 뒤에 새로 들어온 메시지에만 반응해요. */
+const APP_TITLE = '우리 가족 기록장';
+const TITLE_NEW = '💬 새 메시지! · 우리 가족 기록장';
+
+function notifySupported() {
+  return typeof window !== 'undefined' && 'Notification' in window;
+}
+function notifyPermission() {
+  return notifySupported() ? Notification.permission : 'unsupported';
+}
+
+let notifyOn = (() => {
+  const saved = store.get(LS.notifyOn, '');
+  if (saved === '1') return true;
+  if (saved === '0') return false;
+  return notifyPermission() === 'granted';        // 처음엔 브라우저가 이미 허용해 둔 상태면 켜 둬요
+})();
+let notifyArmed = false;      // 최근 기록을 받아오는 동안에는 울리지 않아요
+let titleAway = false;        // 탭 제목을 "새 메시지!"로 바꿔 둔 상태인지
+
+function notifySound() {
+  audio();
+  beep(880, 0.1);
+  beep(1180, 0.14, 0.11);
+}
+
+/* 설정·채팅방 머리의 🔔 버튼 모양을 지금 상태에 맞춰요 */
+function renderNotifyUI() {
+  const p = notifyPermission();
+  const btn = $('notifyBtn');
+  if (btn) {
+    btn.textContent = notifyOn ? '🔔' : '🔕';
+    btn.classList.toggle('on', notifyOn);
+    btn.setAttribute('aria-pressed', notifyOn ? 'true' : 'false');
+    btn.setAttribute('aria-label', notifyOn ? '새 대화 알림 끄기' : '새 대화 알림 켜기');
+    btn.title = notifyOn ? '새 대화 알림 켜짐' : '새 대화 알림 꺼짐';
+  }
+  const sw = $('notifyToggle');
+  if (sw) sw.checked = notifyOn;
+  const info = $('notifyState');
+  if (info) {
+    if (p === 'denied') {
+      info.textContent = '브라우저가 이 사이트의 알림을 막고 있어요. 주소창 옆 자물쇠(사이트 설정)에서 알림을 “허용”으로 바꾼 뒤 다시 켜 주세요.';
+    } else if (notifyOn && p === 'granted') {
+      info.textContent = '새 대화나 준비물 요청이 오면 알림음과 함께 화면 위에 알려 드려요.';
+    } else if (notifyOn) {
+      info.textContent = '새 대화가 오면 알림음과 탭 제목으로 알려 드려요. 화면 위 알림은 브라우저가 허용해 주면 함께 보여요.';
+    } else {
+      info.textContent = '꺼져 있어요. 켜면 새 대화가 왔을 때 알려 드려요.';
+    }
+  }
+}
+
+function notifySayDenied() {
+  photoNote('브라우저에서 알림이 막혀 있어요. 주소창 옆 자물쇠 → 알림 “허용”으로 바꾼 뒤 다시 눌러 주세요.');
+  clearTimeout(notifySayDenied._t);
+  notifySayDenied._t = setTimeout(() => photoNote(''), 9000);
+}
+
+/* 켜기: 브라우저에 알림 허용을 물어보고, 막혀 있으면 안내만 해요 */
+async function notifySet(on, opts) {
+  const o = opts || {};
+  let want = !!on;
+  if (want && notifyPermission() === 'default') {
+    try { await Notification.requestPermission(); } catch (e) {}
+  }
+  if (want && notifyPermission() === 'denied') {
+    want = false;
+    if (!o.silent) notifySayDenied();
+  }
+  notifyOn = want;
+  store.set(LS.notifyOn, want ? '1' : '0');
+  renderNotifyUI();
+  if (want && !o.silent) notifySound();          // 켤 때 한 번 들려 줘요
+  return notifyOn;
+}
+
+/* 앱을 열 때: 브라우저에서 알림이 막혔다면 꺼진 상태로 맞춰 둬요 */
+function notifyInit() {
+  if (notifyOn && notifyPermission() === 'denied') {
+    notifyOn = false;
+    store.set(LS.notifyOn, '0');
+  }
+  renderNotifyUI();
+}
+
+/* 화면 위 시스템 알림 (클릭하면 창을 앞으로 + 채팅으로 이동) */
+function notifyPopup(title, body, tag) {
+  if (!notifyOn || notifyPermission() !== 'granted') return;
+  try {
+    const n = new Notification(title, { body: body, tag: tag || 'fd-chat', renotify: true });
+    n.onclick = () => {
+      try { window.focus(); } catch (e) {}
+      notifyGoChat();
+      try { n.close(); } catch (e) {}
+    };
+    setTimeout(() => { try { n.close(); } catch (e) {} }, 20000);
+  } catch (e) {
+    // 휴대폰 브라우저 중에는 페이지가 만든 알림을 막는 경우가 있어요 — 소리와 탭 제목으로만 알려요
+  }
+}
+
+function notifyGoChat() {
+  document.title = APP_TITLE;
+  titleAway = false;
+  const log = $('chatLog');
+  if (!log) return;
+  try { log.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+  log.scrollTop = log.scrollHeight;
+}
+
+function notifyAwayTitle() {
+  if (!document.hidden || titleAway) return;      // 보고 있는 화면이면 제목은 그대로 둬요
+  titleAway = true;
+  document.title = TITLE_NEW;
+}
+
+function notifyRestoreTitle() {
+  if (!titleAway) return;
+  titleAway = false;
+  document.title = APP_TITLE;
+}
+
+function chatNotifyBody(d) {
+  const text = typeof d[2] === 'string' ? d[2].trim() : '';
+  if (safePhotoUrl(d[3])) return '📷 사진을 보냈어요' + (text ? ' · ' + text : '');
+  if (safePhotoUrl(d[4])) return '🎙️ 음성메시지를 보냈어요' + (text ? ' · ' + text : '');
+  return text || '새 메시지가 왔어요';
+}
+
+/* 새로 들어온 채팅 (fresh: [{ id, d }], 오래된 것부터) */
+function notifyNewChat(fresh) {
+  if (!notifyOn || !fresh || !fresh.length) return;
+  const last = fresh[fresh.length - 1];
+  const who = (last.d && last.d[0]) || '가족';
+  const more = fresh.length - 1;
+  let body = chatNotifyBody(last.d);
+  if (more > 0) body = `새 메시지 ${fresh.length}개 · ${body}`;
+  notifySound();
+  notifyAwayTitle();
+  notifyPopup(`💬 ${who} · 우리 가족 기록장`, body, 'fd-chat');
+  const btn = $('notifyBtn');
+  if (btn) anim(btn, [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 420 });
+}
+
+/* 새로 들어온 준비물 요청 (fresh: 요청 배열들) */
+function notifyNewSupply(fresh) {
+  if (!fresh || !fresh.length) return;
+  if (!notifyOn) {
+    // 알림을 꺼 두었어도 예전처럼 작은 소리로만 알려 줘요 (4초에 한 번까지만)
+    if (now() - supplyBeepAt > 4000) {
+      supplyBeepAt = now();
+      beep(880, 0.12);
+      beep(1180, 0.16, 0.13);
+    }
+    return;
+  }
+  const r = fresh[fresh.length - 1];
+  const who = r[0] || '가족';
+  const what = r[1] || '준비물';
+  const due = r[2] ? ` · ${r[2]}` : '';
+  notifySound();
+  notifyAwayTitle();
+  notifyPopup(`🎒 ${who} · 준비물 요청`, `${what}${due}`, 'fd-supply');
+}
+
 /* ============================== 동기화 ============================== */
 const DEVICE = (() => {
   let d = store.get(LS.device, '');
@@ -463,17 +633,24 @@ async function handleIncoming(msg) {
     return;
   }
   if (obj.s) {
-    const before = supplyPendingCount();
+    const knownChat = Object.keys(state.chat);
+    const knownSupply = Object.keys(state.supplies || {});
     const changed = mergeState(state, obj.s);
     if (changed) {
       saveState();
       renderAll();
       flashSync();
-      // 다른 기기에서 새 준비물 요청이 왔으면 조용히 알려 줘요 (4초에 한 번까지만)
-      if (supplyPendingCount() > before && now() - supplyBeepAt > 4000) {
-        supplyBeepAt = now();
-        beep(880, 0.12);
-        beep(1180, 0.16, 0.13);
+      // 최근 기록을 다 받아 둔 뒤에 새로 들어온 것만 알려 줘요 (처음 12시간 로딩 때는 조용히)
+      if (notifyArmed) {
+        const freshChat = Object.keys(state.chat)
+          .filter((id) => knownChat.indexOf(id) < 0)
+          .map((id) => ({ id: id, d: state.chat[id] }))
+          .sort((a, b) => ((a.d && a.d[1]) || 0) - ((b.d && b.d[1]) || 0));
+        if (freshChat.length) notifyNewChat(freshChat);
+        const freshSupply = Object.keys(state.supplies || {})
+          .filter((id) => knownSupply.indexOf(id) < 0 && (Number(state.supplies[id][4]) || 0) === 0)
+          .map((id) => state.supplies[id]);
+        if (freshSupply.length) notifyNewSupply(freshSupply);
       }
     }
   }
@@ -1855,13 +2032,14 @@ function bindEvents() {
     if (!confirm('이 기기에 저장된 기록과 선택한 사용자, 기억해 둔 가족 비밀번호까지 지울까요? (가족 공용 기록은 그대로 남아요)')) return;
     suppressSave = true;
     [LS.state, LS.me, LS.city, LS.city + '_coords', LS.bed, LS.bedTime, LS.bedLast, LS.timer, LS.roomKey,
-      LS.prepOn, LS.prepStart, LS.prepEnd, LS.prepWeekday, LS.prepDismiss].forEach((k) => store.del(k));
+      LS.prepOn, LS.prepStart, LS.prepEnd, LS.prepWeekday, LS.prepDismiss, LS.notifyOn].forEach((k) => store.del(k));
     room = '';
     location.replace(location.pathname);   // 잠금 화면으로 돌아갑니다
   });
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
+    notifyRestoreTitle();          // "새 메시지!"로 바꿔 둔 탭 제목을 되돌려요
     // 화면이 다시 보이면 받아오고, 실시간 연결도 새로 맺어요.
     // (모바일은 EventSource가 조용히 멈춰도 readyState가 OPEN으로 남아 있어요.)
     // 화면이 켜진 직후에는 네트워크가 아직 안 깨어 있어 첫 요청이 자주 실패하므로
@@ -1880,6 +2058,10 @@ function bindEvents() {
     startStream();
     if (pendingPublish) schedulePublish(100);
   });
+  const notifyBtn = $('notifyBtn');
+  if (notifyBtn) notifyBtn.addEventListener('click', () => { notifySet(!notifyOn); });
+  const notifyToggle = $('notifyToggle');
+  if (notifyToggle) notifyToggle.addEventListener('change', () => { notifySet(notifyToggle.checked); });
   const syncBtn = $('syncNow');
   if (syncBtn) syncBtn.addEventListener('click', syncNow);
   const settingsSyncBtn = $('settingsSyncNow');
@@ -2425,6 +2607,7 @@ function lockApp(message) {
   clearTimeout(sseRetryTimer);
   room = '';
   store.del(LS.roomKey);
+  notifyArmed = false;
   lastMsgTime = 0;
   lastSyncAt = 0;
   setStatus('wait');
@@ -2462,6 +2645,7 @@ function startApp() {
   });
 
   renderAll();
+  notifyInit();
   timerDraw();
   loadWeather(false);
   setInterval(() => { loadWeather(false); }, 20 * 60 * 1000);
@@ -2493,7 +2677,8 @@ function restartSync() {
   lastMsgTime = 0;
   setStatus('wait');
   (async () => {
-    await pollOnce(true);
+    await pollOnce(true);          // 최근 12시간 기록은 알림 없이 조용히 받아요
+    notifyArmed = true;            // 이제부터 새로 들어오는 메시지에 반응해요
     renderAll();
     startStream();
     // 켤 때는 상태를 올리지 않고 가족에게 "지금 상태 알려줘"만 보냅니다.

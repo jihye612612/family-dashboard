@@ -321,6 +321,13 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 .sync-now:active { transform: scale(.94); }
 .sync-now:disabled { opacity: .6; }
 .sync-now.spin { animation: syncSpin .9s linear infinite; }
+.chat-head-btns { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.notify-btn.on {
+  background: #FFF8E4; border-color: #EBD79A; color: #B4772A;
+  box-shadow: 0 1px 4px rgba(180,119,42,.18);
+}
+.notify-setting { display: flex; flex-direction: column; gap: 4px; }
+.notify-setting .hint { margin: 2px 0 0; white-space: normal; }
 @keyframes syncSpin { from { transform: rotate(0) } to { transform: rotate(360deg) } }
 .sync-info { white-space: pre-line; }
 .chat-log {

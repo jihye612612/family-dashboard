@@ -9,7 +9,7 @@
 <meta name="description" content="우리 가족 기록장 - 가족 미션, 도장판, 채팅, 타이머">
 <title>우리 가족 기록장</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%8F%A1%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body class="locked">
 
@@ -163,7 +163,11 @@
   <section class="card chat-card">
     <div class="card-h-row">
       <h2 class="card-h"><span aria-hidden="true">💬</span> 가족 채팅방</h2>
-      <button class="sync-now" id="syncNow" type="button" aria-label="지금 동기화" title="지금 동기화">🔄</button>
+      <div class="chat-head-btns">
+        <button class="sync-now notify-btn" id="notifyBtn" type="button" aria-pressed="false"
+                aria-label="새 대화 알림 켜기" title="새 대화 알림 꺼짐">🔕</button>
+        <button class="sync-now" id="syncNow" type="button" aria-label="지금 동기화" title="지금 동기화">🔄</button>
+      </div>
     </div>
     <div class="chat-log" id="chatLog"></div>
     <div class="stickers" id="stickers"></div>
@@ -262,6 +266,14 @@
         <button class="btn" id="customCitySave">찾기</button>
       </div>
 
+      <div class="notify-setting">
+        <label class="switch-row">
+          <span>🔔 새 대화 알림</span>
+          <span class="switch"><input type="checkbox" id="notifyToggle"><span class="slider"></span></span>
+        </label>
+        <p class="hint" id="notifyState">꺼져 있어요. 켜면 새 대화가 왔을 때 알려 드려요.</p>
+      </div>
+
       <div class="lock-setting">
         <div class="lock-setting-head">
           <span>🔒 우리 가족 비밀번호</span>
@@ -295,6 +307,6 @@
   </div>
 </div>
 
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>
