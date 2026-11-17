@@ -12,7 +12,10 @@ const ROOM_PREFIX = 'pkf-';                       // 만들어지는 방 이름 
 const ROOM_KEY_HEX = 28;                          // 방 이름에 쓰는 해시 길이
 const MIN_PW_LEN = 4;                             // 가족 비밀번호 최소 길이
 const WIRE_MAX_BYTES = 3900;                      // ntfy 메시지 한도(4096B) 여유
-const POLL_MS = 6000;                             // 안전망 폴링 간격 (SSE가 붙어 있어도 계속 돌려요)
+const POLL_MS = 20000;                            // 안전망 폴링 간격 (SSE가 붙어 있어도 계속 돌려요)
+const POLL_FAIL_MAX = 3;                          // 이만큼 연속으로 실패해야 진짜 오프라인으로 봐요
+const BACKOFF_MS = 30000;                         // 서버가 429(요청 많음)를 주면 이만큼 쉬어요
+const WAKE_DELAY_MS = 350;                        // 화면이 켜진 뒤 네트워크가 깨어날 여유
 const PHOTO_MAX_PX = 960;                         // 사진은 긴 쪽 960px까지만 줄여서 올려요
 const PHOTO_QUALITY = 0.78;                       // JPEG 품질 (휴대폰 사진도 1초 안에 올라가요)
 const PHOTO_TOPIC_TAIL = '-files';                // 사진은 채팅 주제 대신 사진 전용 주제로 올려요
@@ -309,6 +312,9 @@ let lastSyncAt = 0;
 let helloAt = 0;
 let lastPubTry = 0;
 let statusMode = 'wait';
+let pollFailCount = 0;             // 연속 실패 횟수 (한 번 실패로 배지를 바꾸지 않으려고)
+let backoffUntil = 0;              // 429를 받았을 때 쉬어 두는 시각
+let wakeTimer = null;              // 화면 복귀 시 잠깐 미루는 타이머
 
 /* 두 기기가 같은 방에 있는지 눈으로 대조하는 코드: 방 이름 끝 4자리 (#xxxx) */
 function roomTag() {
@@ -318,6 +324,22 @@ function roomTag() {
 function withRoomTag(text) {
   const tag = roomTag();
   return tag ? `${text} · ${tag}` : text;
+}
+
+/* 연결 성공: 실패 횟수를 지우고 배지를 "가족과 연결됨"으로 되돌려요 */
+function noteConnOk() {
+  pollFailCount = 0;
+  if (statusMode !== 'flash') setStatus('on');
+  renderSyncInfo();
+}
+
+/* 연결 실패: 한 번쯤 놓친 것은 모바일에서 흔한 일이라 그대로 두고,
+   기기가 오프라인이거나 연속 3번 실패했을 때만 배지를 오프라인으로 바꿔요. */
+function noteConnFail() {
+  pollFailCount++;
+  const deviceOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (deviceOffline || pollFailCount >= POLL_FAIL_MAX) setStatus('off');
+  renderSyncInfo();
 }
 
 function setStatus(mode, text) {
@@ -408,14 +430,16 @@ async function publish(payloadExtra) {
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
       body
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      if (res.status === 429) backoffUntil = now() + BACKOFF_MS;   // 요청 제한이면 잠깐 쉬어요
+      throw new Error('HTTP ' + res.status);
+    }
     pendingPublish = false;
     lastSyncAt = now();
-    setStatus('on');
-    renderSyncInfo();
+    noteConnOk();
   } catch (e) {
     pendingPublish = true;
-    setStatus('off');
+    noteConnFail();
   } finally {
     pubBusy = false;
   }
@@ -465,22 +489,25 @@ function flashSync() {
 
 async function pollOnce(initial) {
   if (!room) return;
+  if (now() < backoffUntil) return;                 // 서버가 429를 준 뒤에는 잠깐 조용히 있어요
   try {
     const since = initial ? '12h' : (lastMsgTime ? String(Math.max(1, Math.floor(lastMsgTime / 1000) - 2)) : '12h');
     const res = await fetch(`${NTFY}/${encodeURIComponent(room)}/json?poll=1&since=${since}&sched=0`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      if (res.status === 429) backoffUntil = now() + BACKOFF_MS;   // 요청 제한이면 잠깐 쉬어요
+      throw new Error('HTTP ' + res.status);
+    }
     const text = await res.text();
     const lines = text.split('\n').filter((l) => l.trim());
     for (const line of lines) {
       try { await handleIncoming(JSON.parse(line)); } catch (e) {}
     }
     lastSyncAt = now();
-    setStatus('on');
-    renderSyncInfo();
+    noteConnOk();
     // 연결이 살아 있으니, 못 올린 기록이 있으면 다시 올려요 (10초에 한 번까지만)
     if (pendingPublish && now() - lastPubTry > 10000) schedulePublish(0);
   } catch (e) {
-    setStatus('off');
+    noteConnFail();
   }
 }
 
@@ -527,13 +554,14 @@ function startStream() {
   };
   sse.onerror = () => {
     sseFailures++;
+    startPolling();                                    // SSE가 끊겨도 폴링 안전망이 계속 받아 와요
     if (sse.readyState === EventSource.CLOSED) {
-      startPolling();                                  // 폴링 폴백
-      setStatus('off', '실시간 연결 끊김 — 다시 연결 중');
+      // 폴링이 살아 있으니 배지는 그대로 두고, 재연결만 조용히 예약해요.
       clearTimeout(sseRetryTimer);
       sseRetryTimer = setTimeout(startStream, Math.min(30000, 3000 * sseFailures));
     } else if (sseFailures > 6) {
-      startPolling();
+      clearTimeout(sseRetryTimer);
+      sseRetryTimer = setTimeout(startStream, 15000);  // 계속 맴돌면 연결을 새로 맺어요
     }
   };
 }
@@ -1834,13 +1862,20 @@ function bindEvents() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
-    // 화면이 다시 보이면 조건 없이 바로 받아오고, 실시간 연결도 새로 맺어요.
+    // 화면이 다시 보이면 받아오고, 실시간 연결도 새로 맺어요.
     // (모바일은 EventSource가 조용히 멈춰도 readyState가 OPEN으로 남아 있어요.)
-    pollOnce(false);
-    startStream();
+    // 화면이 켜진 직후에는 네트워크가 아직 안 깨어 있어 첫 요청이 자주 실패하므로
+    // 350ms 쉬었다가 보내요.
+    clearTimeout(wakeTimer);
+    wakeTimer = setTimeout(() => {
+      pollOnce(false);
+      startStream();
+    }, WAKE_DELAY_MS);
     loadWeather(false);
   });
+  window.addEventListener('offline', () => setStatus('off'));   // 기기 네트워크가 끊기면 바로 알려요
   window.addEventListener('online', () => {
+    pollFailCount = 0;
     pollOnce(false);
     startStream();
     if (pendingPublish) schedulePublish(100);
@@ -1953,25 +1988,58 @@ function shrinkPhoto(file) {
   });
 }
 
-/* 사진 전용 주제에 올리고 주소를 돌려받습니다 */
-function putPhoto(blob) {
-  return new Promise((resolve, reject) => {
-    if (!room) { reject(new Error('locked')); return; }
-    const topic = room + PHOTO_TOPIC_TAIL;
-    const name = 'photo-' + Date.now().toString(36) + '.jpg';
-    fetch(NTFY + '/' + encodeURIComponent(topic), {
-      method: 'PUT',
-      headers: { 'Filename': name, 'Content-Type': 'image/jpeg' },
-      body: blob
-    }).then((res) => {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.json();
-    }).then((obj) => {
+/* 다시 해 볼 만한 실패인지: 429(요청 많음)·5xx·네트워크 오류는 한 번 더, 4xx는 그만 */
+function isRetryable(e) {
+  if (!e) return false;
+  if (e.status === 429) return true;
+  if (e.status >= 500 && e.status < 600) return true;
+  if (e.status) return false;
+  return e.message !== 'no-url';
+}
+
+/* 파일 주제에 PUT으로 올리고 주소를 돌려줍니다.
+   ntfy가 "요청 너무 많음(429)"이나 일시 오류를 주면 1.5초 쉬었다가 한 번 더 시도해요. */
+async function putFile(body, type, name) {
+  if (!room) throw new Error('locked');
+  const topic = room + PHOTO_TOPIC_TAIL;
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const res = await fetch(NTFY + '/' + encodeURIComponent(topic), {
+        method: 'PUT',
+        headers: { 'Filename': name, 'Content-Type': type },
+        body
+      });
+      if (!res.ok) {
+        const err = new Error('HTTP ' + res.status);
+        err.status = res.status;
+        throw err;
+      }
+      const obj = await res.json();
       const url = obj && obj.attachment && obj.attachment.url ? String(obj.attachment.url) : '';
       if (!safePhotoUrl(url)) throw new Error('no-url');
-      resolve(url);
-    }).catch(reject);
-  });
+      return url;
+    } catch (e) {
+      lastErr = e;
+      if (e && e.status === 429) backoffUntil = now() + BACKOFF_MS;
+      if (!isRetryable(e)) break;
+    }
+  }
+  throw lastErr || new Error('fail');
+}
+
+/* 사진 전용 주제에 올리고 주소를 돌려받습니다 */
+function putPhoto(blob) {
+  return putFile(blob, 'image/jpeg', 'photo-' + Date.now().toString(36) + '.jpg');
+}
+
+/* 실패 이유를 사용자가 알 수 있는 말로 바꿔요 */
+function putFailText(e, what) {
+  if (e && e.status === 429) return '요청이 너무 많아 잠시 막혔어요 (30초 뒤 다시 해 주세요)';
+  if (e && e.status) return what + ' (서버가 ' + e.status + '로 막았어요. 잠시 뒤 다시 해 주세요)';
+  if (e && e.message === 'locked') return '가족 비밀번호를 넣은 뒤에 보낼 수 있어요';
+  return what + ' (연결이 잠깐 끊겼어요. 잠시 뒤 다시 해 주세요)';
 }
 
 async function sendPhotoFile(file) {
@@ -1979,7 +2047,7 @@ async function sendPhotoFile(file) {
   if (!room) return;
   const me = getMe();
   if (!me) { hintWho(); return; }
-  if (file.type && String(file.type).indexOf('image/') !== 0) {
+  if (!looksLikePhoto(file)) {
     photoNote('사진 파일만 보낼 수 있어요');
     return;
   }
@@ -1991,7 +2059,7 @@ async function sendPhotoFile(file) {
     blob = await shrinkPhoto(file);
   } catch (e) {
     photoBusyUI(false);
-    photoNote('이 사진은 보낼 수 없어요. JPG · PNG 사진으로 다시 굴라 주세요');
+    photoNote('이 사진은 보낼 수 없어요. JPG · PNG 사진으로 다시 골라 주세요');
     return;
   }
   photoNote('사진 올리는 중…');
@@ -2001,8 +2069,19 @@ async function sendPhotoFile(file) {
     sendChat(caption, false, url);
   } catch (e) {
     photoBusyUI(false);
-    photoNote('사진을 올리지 못했어요. 잠시 뒤 다시 해 보세요');
+    photoNote(putFailText(e, '사진을 올리지 못했어요'));
   }
+}
+
+/* 안드로이드·아이폰은 형식(type)이 비어 오거나 image/heic·image/heif로 오는 일이 많아요.
+   형식이 같아도 확장자로 한 번 더 보고, 그림이면 일단 줄여 보기를 시도합니다. */
+const PHOTO_EXT_RE = /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i;
+function looksLikePhoto(file) {
+  if (!file) return false;
+  const type = String(file.type || '').toLowerCase();
+  if (!type) return true;                          // 형식이 비어 오면 일단 시도해 봐요
+  if (type.indexOf('image/') === 0) return true;   // image/heic · image/heif 포함
+  return PHOTO_EXT_RE.test(String(file.name || ''));      // 확장자로도 한 번 더 (형식이 애매할 때)
 }
 
 /* ============================== 채팅 음성메시지 ============================== */
@@ -2181,7 +2260,7 @@ async function finishVoice() {
     } catch (e) {
       voiceRec.busy = false;
       voiceBtnDraw();
-      photoNote('음성메시지를 올리지 못했어요. 잠시 뒤 다시 해 보세요');
+      photoNote(putFailText(e, '음성메시지를 올리지 못했어요'));
       return;
     }
     voiceRec.busy = false;
@@ -2197,7 +2276,6 @@ async function finishVoice() {
 function putVoice(blob, mime) {
   return new Promise((resolve, reject) => {
     if (!room) { reject(new Error('locked')); return; }
-    const topic = room + PHOTO_TOPIC_TAIL;
     const base = String(mime || '').split(';')[0].trim().toLowerCase();
     const ext = base === 'audio/mp4' ? 'm4a'
       : base === 'audio/ogg' ? 'ogg'
@@ -2205,18 +2283,7 @@ function putVoice(blob, mime) {
       : 'webm';
     const type = base || 'audio/webm';
     const name = 'voice-' + Date.now().toString(36) + '.' + ext;
-    fetch(NTFY + '/' + encodeURIComponent(topic), {
-      method: 'PUT',
-      headers: { 'Filename': name, 'Content-Type': type },
-      body: blob
-    }).then((res) => {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.json();
-    }).then((obj) => {
-      const url = obj && obj.attachment && obj.attachment.url ? String(obj.attachment.url) : '';
-      if (!safePhotoUrl(url)) throw new Error('no-url');
-      resolve(url);
-    }).catch(reject);
+    putFile(blob, type, name).then(resolve, reject);
   });
 }
 
