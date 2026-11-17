@@ -93,6 +93,19 @@ const SUPPLY_KIDS = [
 ];
 const SUPPLY_HINT = '요청을 남기면 엄마 화면에도 바로 떠요. 엄마가 ✅ 를 누르면 “엄마 준비 완료!”로 바뀌어요.';
 
+/* 홈스쿨: 아이마다 오늘의 공부(과목 + 분량)를 정해 두고, 아이가 하나씩 완료를 체크해요.
+   그날 공부를 모두 체크하면 엄마 확인 버튼이 열리고, 엄마가 확인하면 달력에 “다 했어요”가 찍혀요. */
+const HS_KIDS = [
+  { key: 'dowan', name: '도완', avatar: 'dowan', short: '도' },
+  { key: 'doeun', name: '도은', avatar: 'doeun', short: '은' }
+];
+const HS_MAX_ITEMS = 8;          // 한 아이가 하루에 넣을 수 있는 공부 수
+const HS_TEXT_MAX = 20;          // 과목 이름 글자 수
+const HS_QTY_MAX = 16;           // 분량 글자 수
+const HS_KEEP_DAYS = 70;         // 이 기기에 남기는 홈스쿨 기록 (달력 과거 날짜용)
+const HS_WIRE_DAYS = 21;         // 기기끼리 주고받는 기록 (한 달 조금 넘김)
+const HS_WIRE_DAYS_MIN = 3;      // 페이로드가 크면 여기까지만 줄여요
+
 const WMO = {
   0: ['맑음', '☀️'], 1: ['대체로 맑음', '🌤️'], 2: ['구름 조금', '⛅'], 3: ['흐림', '☁️'],
   45: ['안개', '🌫️'], 48: ['안개', '🌫️'],
@@ -147,10 +160,124 @@ function avatarHTML(key) {
 }
 
 /* ============================== 상태 ============================== */
+/* 홈스쿨 상태 다듬기 */
+function hsItem(v) {
+  if (!Array.isArray(v)) return null;
+  const name = String(v[0] == null ? '' : v[0]).replace(/\s+/g, ' ').trim().slice(0, HS_TEXT_MAX);
+  if (!name) return null;
+  const qty = String(v[1] == null ? '' : v[1]).replace(/\s+/g, ' ').trim().slice(0, HS_QTY_MAX);
+  return [name, qty];
+}
+
+function hsCfgOf(src) {
+  const out = { dowan: [], doeun: [] };
+  if (!src || typeof src !== 'object') return out;
+  HS_KIDS.forEach((k) => {
+    const arr = Array.isArray(src[k.key]) ? src[k.key] : [];
+    arr.slice(0, HS_MAX_ITEMS).forEach((v) => { const it = hsItem(v); if (it) out[k.key].push(it); });
+  });
+  return out;
+}
+
+/* 한 칸은 등교 준비와 같은 규칙: 양수 = 누른 시각(초), 음수 = 취소한 시각, 0 = 아직 */
+function hsArr(v) {
+  const out = [];
+  if (Array.isArray(v)) {
+    for (let i = 0; i < Math.min(HS_MAX_ITEMS, v.length); i++) out[i] = Math.round(Number(v[i]) || 0);
+  }
+  return out;
+}
+
+function hsDayOf(v) {
+  const out = { dowan: [], doeun: [], m: {} };
+  if (!v || typeof v !== 'object') return out;
+  HS_KIDS.forEach((k) => { out[k.key] = hsArr(v[k.key]); });
+  if (v.m && typeof v.m === 'object') {
+    HS_KIDS.forEach((k) => {
+      const n = Math.round(Number(v.m[k.key]) || 0);
+      if (n) out.m[k.key] = n;
+    });
+  }
+  return out;
+}
+
+/* 지난 날 요약 코드: x = 그날 공부 없음, - = 하나도 안 함, p = 일부만, a = 다 함, c = 다 하고 엄마 확인 */
+const HS_CODE_CHARS = { x: true, '-': true, p: true, a: true, c: true };
+const HS_CODE_RANK = { x: 0, '-': 1, p: 2, a: 3, c: 4 };
+function hsMarkOf(v) {
+  const out = {};
+  if (!v || typeof v !== 'object') return out;
+  Object.keys(v).forEach((d) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    const s = String(v[d] || '');
+    const a = HS_CODE_CHARS[s[0]] ? s[0] : 'x';
+    const b = HS_CODE_CHARS[s[1]] ? s[1] : 'x';
+    if (a === 'x' && b === 'x') return;
+    out[d] = a + b;
+  });
+  return out;
+}
+
+function hsStateOf(src) {
+  const out = { cfg: { dowan: [], doeun: [] }, at: 0, rec: {}, mark: {} };
+  if (!src || typeof src !== 'object') return out;
+  out.cfg = hsCfgOf(src.cfg);
+  out.at = Math.round(Number(src.at) || 0);
+  if (src.rec && typeof src.rec === 'object') {
+    Object.keys(src.rec).forEach((d) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+      out.rec[d] = hsDayOf(src.rec[d]);
+    });
+  }
+  out.mark = hsMarkOf(src.mark);
+  return out;
+}
+
+/* 기기에 남길 만큼만: 최근 HS_KEEP_DAYS일, 빈 날은 버려요 */
+function pruneHs(src) {
+  const h = hsStateOf(src);
+  const out = { cfg: h.cfg, at: h.at, rec: {}, mark: {} };
+  const cut = new Date();
+  cut.setDate(cut.getDate() - HS_KEEP_DAYS);
+  const cutKey = dayKey(cut);
+  Object.keys(h.rec)
+    .filter((d) => d >= cutKey && hsDayEmpty(h.rec[d]) === false)
+    .sort()
+    .slice(-8)
+    .forEach((d) => { out.rec[d] = hsTrimDay(h.rec[d]); });
+  Object.keys(h.mark)
+    .filter((d) => d >= cutKey)
+    .sort()
+    .slice(-HS_KEEP_DAYS - 10)
+    .forEach((d) => { out.mark[d] = h.mark[d]; });
+  return out;
+}
+
+function hsDayEmpty(r) {
+  if (!r) return true;
+  const kids = HS_KIDS.some((k) => (r[k.key] || []).some((v) => Number(v) !== 0));
+  const mom = HS_KIDS.some((k) => Number(r.m && r.m[k.key]) !== 0);
+  return !kids && !mom;
+}
+
+/* 보낼 때 크기를 줄이려고 뒤쪽 빈 칸은 잘라요 */
+function hsTrimDay(r) {
+  const out = { dowan: [], doeun: [], m: {} };
+  HS_KIDS.forEach((k) => {
+    const arr = (r[k.key] || []).slice();
+    while (arr.length && !Number(arr[arr.length - 1])) arr.pop();
+    out[k.key] = arr;
+    const m = Number(r.m && r.m[k.key]) || 0;
+    if (m) out.m[k.key] = m;
+  });
+  return out;
+}
+
 function emptyState() {
   return {
-    v: 1, chat: {}, reacts: {}, stars: { base: {}, ev: {} }, stamps: {}, missions: {}, cur: null,
-    prep: { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }, supplies: {}
+    v: 1, chat: {}, reacts: {}, stamps: {}, missions: {}, cur: null,
+    prep: { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }, supplies: {},
+    hs: { cfg: { dowan: [], doeun: [] }, at: 0, rec: {}, mark: {} }
   };
 }
 
@@ -185,17 +312,14 @@ function normalizeState(s) {
     v: 1,
     chat: s.chat && typeof s.chat === 'object' ? s.chat : {},
     reacts: s.reacts && typeof s.reacts === 'object' ? s.reacts : {},
-    stars: {
-      base: s.stars && s.stars.base && typeof s.stars.base === 'object' ? s.stars.base : {},
-      ev: s.stars && s.stars.ev && typeof s.stars.ev === 'object' ? s.stars.ev : {}
-    },
     stamps: s.stamps && typeof s.stamps === 'object' ? s.stamps : {},
     missions: s.missions && typeof s.missions === 'object' ? s.missions : {},
     cur: Array.isArray(s.cur) ? s.cur : null,
     prep: s.prep && typeof s.prep === 'object'
       ? { d: typeof s.prep.d === 'string' ? s.prep.d : '', dowan: prepArr(s.prep.dowan), doeun: prepArr(s.prep.doeun) }
       : { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] },
-    supplies: supplyMap(s.supplies)
+    supplies: supplyMap(s.supplies),
+    hs: hsStateOf(s.hs)
   };
 }
 
@@ -206,9 +330,10 @@ function saveState() {
 function pruneForStore(s) {
   const out = {
     v: 1,
-    chat: {}, reacts: {}, stars: { base: { ...s.stars.base }, ev: {} },
+    chat: {}, reacts: {},
     stamps: {}, missions: { ...s.missions }, cur: s.cur,
     supplies: pruneSupplies(s.supplies),
+    hs: pruneHs(s.hs),
     prep: s.prep
       ? { d: s.prep.d, dowan: prepArr(s.prep.dowan), doeun: prepArr(s.prep.doeun) }
       : { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }
@@ -218,9 +343,6 @@ function pruneForStore(s) {
     out.chat[id] = s.chat[id];
     if (s.reacts[id]) out.reacts[id] = s.reacts[id];
   });
-  const evCut = now() - 60 * 24 * 3600 * 1000;
-  const evIds = Object.keys(s.stars.ev).sort((a, b) => (s.stars.ev[b][1] || 0) - (s.stars.ev[a][1] || 0));
-  evIds.slice(0, 300).forEach((id) => { const e = s.stars.ev[id]; if (e[1] > evCut || evIds.indexOf(id) < 100) out.stars.ev[id] = e; });
   const stampCut = dayKey(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1));
   Object.keys(s.stamps).forEach((d) => { if (d >= stampCut) out.stamps[d] = s.stamps[d]; });
   return out;
@@ -239,13 +361,6 @@ function mergeState(target, incoming) {
     if (!target.chat[id]) return;
     const mine = target.reacts[id] || (target.reacts[id] = []);
     inc.reacts[id].forEach((w) => { if (!mine.includes(w)) { mine.push(w); changes++; } });
-  });
-  Object.keys(inc.stars.base).forEach((w) => {
-    const v = Number(inc.stars.base[w]) || 0;
-    if (v > (Number(target.stars.base[w]) || 0)) { target.stars.base[w] = v; changes++; }
-  });
-  Object.keys(inc.stars.ev).forEach((id) => {
-    if (!target.stars.ev[id]) { target.stars.ev[id] = inc.stars.ev[id]; changes++; }
   });
   Object.keys(inc.stamps).forEach((d) => {
     const mine = target.stamps[d] || (target.stamps[d] = []);
@@ -289,6 +404,54 @@ function mergeState(target, incoming) {
         }
       });
     }
+  }
+  // 홈스쿨: 목록(cfg)은 더 최근에 고친 쪽이 이기고, 그날 체크·엄마 확인은 칸마다 |값|이 큰 쪽이 이겨요
+  if (!target.hs) target.hs = { cfg: { dowan: [], doeun: [] }, at: 0, rec: {}, mark: {} };
+  if (!target.hs.mark) target.hs.mark = {};
+  const ih = inc.hs;
+  if (ih) {
+    const ia = Number(ih.at) || 0;
+    const ta = Number(target.hs.at) || 0;
+    if (ia > ta) {
+      target.hs.cfg = hsCfgOf(ih.cfg);
+      target.hs.at = ia;
+      changes++;
+    }
+    if (!target.hs.rec) target.hs.rec = {};
+    Object.keys(ih.rec || {}).forEach((d) => {
+      const src = ih.rec[d];
+      let mine = target.hs.rec[d];
+      if (!mine) {
+        if (hsDayEmpty(src)) return;
+        target.hs.rec[d] = hsDayOf(src);
+        changes++;
+        return;
+      }
+      HS_KIDS.forEach((k) => {
+        const a = mine[k.key] || (mine[k.key] = []);
+        const b = src[k.key] || [];
+        for (let i = 0; i < Math.max(a.length, b.length); i++) {
+          const x = Math.round(Number(a[i]) || 0);
+          const y = Math.round(Number(b[i]) || 0);
+          if (Math.abs(y) > Math.abs(x)) { a[i] = y; changes++; }
+        }
+      });
+      if (!mine.m) mine.m = {};
+      HS_KIDS.forEach((k) => {
+        const x = Math.round(Number(mine.m[k.key]) || 0);
+        const y = Math.round(Number(src.m && src.m[k.key]) || 0);
+        if (Math.abs(y) > Math.abs(x)) { mine.m[k.key] = y; changes++; }
+      });
+    });
+    // 지난 날 요약은 두 글자마다 더 나아간 쪽(확인 완료 > 다 함 > 일부 > 없음)이 이겨요
+    Object.keys(ih.mark || {}).forEach((d) => {
+      const src = String(ih.mark[d] || '');
+      const mine = String(target.hs.mark[d] || '--');
+      const a = HS_CODE_RANK[src[0]] > HS_CODE_RANK[mine[0]] ? src[0] : mine[0];
+      const b = HS_CODE_RANK[src[1]] > HS_CODE_RANK[mine[1]] ? src[1] : mine[1];
+      const next = (HS_CODE_CHARS[a] ? a : 'x') + (HS_CODE_CHARS[b] ? b : 'x');
+      if (next !== mine) { target.hs.mark[d] = next; changes++; }
+    });
   }
   return changes;
 }
@@ -485,6 +648,14 @@ function notifyNewSupply(fresh) {
   notifyPopup(`🎒 ${who} · 준비물 요청`, `${what}${due}`, 'fd-supply');
 }
 
+/* 아이가 홈스쿨을 다 체크해서 엄마 확인만 남았을 때 (엄마 기기에서만) */
+function notifyHsReady(k) {
+  if (!k) return;
+  notifySound();
+  notifyAwayTitle();
+  notifyPopup(`📚 ${k.name} 홈스쿨`, '오늘 공부를 다 했어요 · 엄마 확인을 기다려요', 'fd-hs');
+}
+
 /* ============================== 동기화 ============================== */
 const DEVICE = (() => {
   let d = store.get(LS.device, '');
@@ -552,11 +723,16 @@ function wireState(maxBytes) {
   const s = pruneForStore(state);
   let ids = Object.keys(s.chat).sort((a, b) => s.chat[b][1] - s.chat[a][1]);
   let keepChat = 40;
-  let keepEv = 200;
   let keepMissions = 15;
   let keepSupplies = 30;
   let keepPrevMonth = true;
+  let keepHsDays = HS_WIRE_DAYS;
   const thisMonth = dayKey().slice(0, 7);
+  const hsCutKey = (days) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return dayKey(d);
+  };
   const build = () => {
     const stamps = {};
     Object.keys(s.stamps).sort().slice(keepPrevMonth ? 0 : -999).forEach((d) => {
@@ -572,18 +748,26 @@ function wireState(maxBytes) {
       })
       .slice(0, keepSupplies)
       .forEach((id) => { supplies[id] = s.supplies[id]; });
+    const hsCut = hsCutKey(keepHsDays);
+    const hsRec = {};
+    Object.keys(s.hs.rec || {})
+      .filter((d) => d >= hsCut)
+      .sort()
+      .forEach((d) => { hsRec[d] = s.hs.rec[d]; });
+    const hsMark = {};
+    Object.keys(s.hs.mark || {})
+      .filter((d) => d >= hsCut)
+      .sort()
+      .forEach((d) => { hsMark[d] = s.hs.mark[d]; });
     const out = {
-      v: 1, chat: {}, reacts: {}, stars: { base: s.stars.base, ev: {} },
-      stamps: stamps, missions: {}, cur: s.cur, prep: s.prep, supplies: supplies
+      v: 1, chat: {}, reacts: {},
+      stamps: stamps, missions: {}, cur: s.cur, prep: s.prep, supplies: supplies,
+      hs: { cfg: s.hs.cfg, at: s.hs.at, rec: hsRec, mark: hsMark }
     };
     ids.slice(0, keepChat).forEach((id) => {
       out.chat[id] = s.chat[id];
       if (s.reacts[id]) out.reacts[id] = s.reacts[id];
     });
-    Object.keys(s.stars.ev)
-      .sort((a, b) => (s.stars.ev[b][1] || 0) - (s.stars.ev[a][1] || 0))
-      .slice(0, keepEv)
-      .forEach((id) => { out.stars.ev[id] = s.stars.ev[id]; });
     Object.keys(s.missions)
       .sort((a, b) => (s.missions[b][2] || 0) - (s.missions[a][2] || 0))
       .slice(0, keepMissions)
@@ -592,12 +776,12 @@ function wireState(maxBytes) {
   };
   let payload = build();
   let guard = 0;
-  while (byteLen(JSON.stringify(payload)) > maxBytes && guard++ < 40) {
+  while (byteLen(JSON.stringify(payload)) > maxBytes && guard++ < 60) {
     if (keepChat > 5) keepChat -= 5;
-    else if (keepEv > 20) keepEv -= 20;
     else if (keepMissions > 0) keepMissions -= 1;
     else if (keepSupplies > 5) keepSupplies -= 5;
     else if (keepPrevMonth) keepPrevMonth = false;
+    else if (keepHsDays > HS_WIRE_DAYS_MIN) keepHsDays -= 3;
     else break;
     payload = build();
   }
@@ -658,11 +842,19 @@ async function handleIncoming(msg) {
   if (obj.s) {
     const knownChat = Object.keys(state.chat);
     const knownSupply = Object.keys(state.supplies || {});
+    const hsDay = dayKey();
+    const hsBefore = HS_KIDS.map((k) => hsAllDone(hsDay, k.key));
     const changed = mergeState(state, obj.s);
     if (changed) {
       saveState();
       renderAll();
       flashSync();
+      // 아이가 오늘 공부를 다 체크해 엄마 확인을 기다리게 되면 엄마에게 알려 줘요
+      if (notifyArmed && getMe() === '엄마') {
+        HS_KIDS.forEach((k, i) => {
+          if (!hsBefore[i] && hsAllDone(hsDay, k.key) && !hsMomOk(hsDay, k.key)) notifyHsReady(k);
+        });
+      }
       // 최근 기록을 다 받아 둔 뒤에 새로 들어온 것만 알려 줘요 (처음 12시간 로딩 때는 조용히)
       if (notifyArmed) {
         const freshChat = Object.keys(state.chat)
@@ -777,6 +969,8 @@ function setMe(name) {
   renderWho();
   renderMembers();
   renderSupplies();
+  renderHomeSchool();
+  renderCalendar();
 }
 
 /* ============================== 렌더 ============================== */
@@ -784,6 +978,7 @@ function renderAll() {
   renderToday();
   renderWho();
   renderMembers();
+  renderHomeSchool();
   renderMission();
   renderCalendar();
   renderChat();
@@ -815,13 +1010,6 @@ function renderWho() {
   }
 }
 
-function starCount(name) {
-  let n = Number(state.stars.base[name]) || 0;
-  const cut = now() - 60 * 24 * 3600 * 1000;
-  Object.values(state.stars.ev).forEach((e) => { if (e[0] === name && e[1] > cut) n++; });
-  return n;
-}
-
 function renderMembers() {
   const wrap = $('members');
   if (!wrap) return;
@@ -832,8 +1020,6 @@ function renderMembers() {
       <div class="avatar">${avatarHTML(m.key)}</div>
       <div class="m-name">${esc(m.name)}</div>
       <div class="m-sub">${esc(m.role)}</div>
-      <div class="m-stars"><span class="star">⭐</span><span>${starCount(m.name)}</span></div>
-      <button class="star-btn" data-star="${esc(m.name)}">+1 칭찬</button>
     </div>`).join('');
 }
 
@@ -889,6 +1075,7 @@ function renderCalendar() {
 
   let cells = '';
   for (let i = 0; i < startPad; i++) cells += '<div class="day empty"></div>';
+  let hsDays = 0;
   for (let day = 1; day <= days; day++) {
     const key = dayKey(new Date(year, month, day));
     const stamps = stampList(key);
@@ -896,9 +1083,23 @@ function renderCalendar() {
       const m = memberByName(s[0]);
       return `<span class="dot ${m ? m.key : 'mom'}" title="${esc(s[0])} · ${esc(s[1] || '')}">${esc((s[0] || '?')[0])}</span>`;
     }).join('');
-    cells += `<div class="day ${key === today ? 'today' : ''}">
+    const hsAll = hsDayAll(key);
+    if (hsAll) hsDays++;
+    const chips = hsAll ? '' : HS_KIDS.map((k) => {
+      const code = hsCodeOf(key, k.key);
+      if (code === 'x' || code === '-') return '';
+      const cls = code === 'c' ? 'conf' : code === 'a' ? 'all' : 'part';
+      const total = hsTotal(k.key);
+      const done = hsDone(key, k.key);
+      const why = code === 'c' ? '엄마 확인까지 끝'
+        : code === 'a' ? '다 체크 · 엄마 확인 기다리는 중'
+        : `${done}/${total || done} 체크`;
+      return `<span class="hsm ${k.key} ${cls}" title="${esc(k.name)} 홈스쿨 · ${esc(why)}">${esc(k.short)}</span>`;
+    }).join('');
+    cells += `<div class="day ${key === today ? 'today' : ''} ${hsAll ? 'hs-done' : ''}">
       <span class="dnum">${day}</span>
-      <div class="dots">${dots}</div>
+      ${dots ? `<div class="dots">${dots}</div>` : ''}
+      ${hsAll ? '<span class="hs-stamp">✅ 다 했어요</span>' : (chips ? `<div class="hs-marks">${chips}</div>` : '')}
     </div>`;
   }
   grid.innerHTML = cells;
@@ -907,7 +1108,9 @@ function renderCalendar() {
   const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
   Object.keys(state.stamps).forEach((k) => { if (k.startsWith(prefix)) total += state.stamps[k].length; });
   const totalEl = $('stampTotal');
-  if (totalEl) totalEl.textContent = `${total}개`;
+  if (totalEl) totalEl.textContent = `미션 ${total}개`;
+  const hsEl = $('hsMonthTotal');
+  if (hsEl) hsEl.textContent = `✅ 다 했어요 ${hsDays}일`;
 }
 
 let viewMonth = new Date();
@@ -1835,6 +2038,393 @@ function supplyClearDone() {
   beep(700, 0.12);
 }
 
+/* ============================== 홈스쿨 ============================== */
+/* 아이마다 “오늘의 공부”를 정해 두고, 아이가 항목마다 완료를 체크해요.
+   그날 공부를 모두 체크하면 엄마 확인 버튼이 열리고, 엄마가 확인하면 달력에 “다 했어요” 도장이 찍혀요.
+   - state.hs.cfg: 등록해 둔 공부 목록 — 날이 바뀌어도 그대로 이어져요
+   - state.hs.rec[날짜]: 그날 아이별 체크(초 단위, 양수=체크·음수=취소)와 엄마 확인 시각 */
+function hsKid(key) { return HS_KIDS.find((k) => k.key === key) || HS_KIDS[0]; }
+function hsCfg(key) { return (state.hs && state.hs.cfg && state.hs.cfg[key]) || []; }
+function hsTotal(key) { return hsCfg(key).length; }
+function hsRecOf(day) { return (state.hs && state.hs.rec && state.hs.rec[day]) || null; }
+
+function hsVal(day, key, i) {
+  const r = hsRecOf(day);
+  const arr = r && r[key];
+  return arr ? Math.round(Number(arr[i]) || 0) : 0;
+}
+
+function hsDone(day, key) {
+  const n = hsTotal(key);
+  let c = 0;
+  for (let i = 0; i < n; i++) if (hsVal(day, key, i) > 0) c++;
+  return c;
+}
+
+/* 그날 그 아이 상태 코드 — 화면 표시와 달력이 같은 규칙을 써요
+   x = 그날 공부 없음, - = 하나도 안 함, p = 일부만 함, a = 다 함, c = 다 하고 엄마 확인 */
+function hsCodeOf(day, key) {
+  const r = hsRecOf(day);
+  if (r) {
+    const arr = r[key] || [];
+    const n = hsTotal(key) || arr.length;
+    let done = 0;
+    for (let i = 0; i < n; i++) if (Math.round(Number(arr[i]) || 0) > 0) done++;
+    const mom = Math.round(Number(r.m && r.m[key]) || 0) > 0;
+    if (!n) return done || mom ? (mom ? 'c' : 'a') : 'x';
+    if (!done && !mom) return '-';
+    if (done < n) return 'p';
+    return mom ? 'c' : 'a';
+  }
+  const mk = state.hs.mark && state.hs.mark[day];
+  if (typeof mk === 'string') {
+    const ch = mk[key === 'doeun' ? 1 : 0];
+    if (HS_CODE_CHARS[ch]) return ch;
+  }
+  return hsTotal(key) > 0 ? '-' : 'x';
+}
+
+function hsAllDone(day, key) {
+  const c = hsCodeOf(day, key);
+  return c === 'a' || c === 'c';
+}
+
+function hsMomVal(day, key) {
+  const r = hsRecOf(day);
+  return Math.round(Number(r && r.m && r.m[key]) || 0);
+}
+
+function hsMomOk(day, key) {
+  return hsCodeOf(day, key) === 'c';
+}
+
+/* 그날 등록된 홈스쿨을 모두 마치고 엄마 확인까지 받았나요? (달력 “다 했어요”) */
+function hsDayAll(day) {
+  const active = HS_KIDS.map((k) => hsCodeOf(day, k.key)).filter((c) => c !== 'x');
+  return active.length > 0 && active.every((c) => c === 'c');
+}
+
+/* 지난 날은 두 글자 요약으로 접어 두어요 (도완, 도은) */
+function hsMarkSet(day, key, code) {
+  if (!state.hs.mark) state.hs.mark = {};
+  const cur = String(state.hs.mark[day] || '--');
+  let a = HS_CODE_CHARS[cur[0]] ? cur[0] : '-';
+  let b = HS_CODE_CHARS[cur[1]] ? cur[1] : '-';
+  const r = HS_CODE_RANK[code] == null ? 0 : HS_CODE_RANK[code];
+  if (key === 'doeun') { if (r >= HS_CODE_RANK[b]) b = code; }
+  else if (r >= HS_CODE_RANK[a]) a = code;
+  state.hs.mark[day] = a + b;
+}
+
+/* 어제까지의 자세한 기록은 요약으로 접어요 (오늘·어제 기록은 그대로 둡니다) */
+function hsCompact() {
+  const keep = {};
+  keep[dayKey()] = true;
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  keep[dayKey(y)] = true;
+  let changed = false;
+  Object.keys(state.hs.rec || {}).forEach((d) => {
+    if (keep[d]) return;
+    HS_KIDS.forEach((k) => hsMarkSet(d, k.key, hsCodeOf(d, k.key)));
+    delete state.hs.rec[d];
+    changed = true;
+  });
+  return changed;
+}
+
+function hsRecWrite(day) {
+  if (!state.hs.rec) state.hs.rec = {};
+  let r = state.hs.rec[day];
+  if (!r) r = state.hs.rec[day] = { dowan: [], doeun: [], m: {} };
+  HS_KIDS.forEach((k) => { if (!Array.isArray(r[k.key])) r[k.key] = []; });
+  if (!r.m) r.m = {};
+  return r;
+}
+
+function hsSay(text) {
+  const el = $('hsNote');
+  if (!el) return;
+  el.textContent = text || '';
+  el.hidden = !text;
+  clearTimeout(hsSay._t);
+  if (text) hsSay._t = setTimeout(() => { el.textContent = ''; el.hidden = true; }, 6000);
+}
+
+function hsCardHTML(k, day, me) {
+  const items = hsCfg(k.key);
+  const total = items.length;
+  const done = hsDone(day, k.key);
+  const conf = hsMomOk(day, k.key);
+  const all = total > 0 && done >= total;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+
+  let sum;
+  if (!total) sum = '오늘의 공부를 기다리고 있어요';
+  else if (conf) sum = `✅ 엄마 확인 완료 · ${total}개`;
+  else if (all) sum = `${total}개 모두 완료! 엄마 확인만 남았어요`;
+  else sum = `${total}개 중 ${done}개 완료`;
+
+  const itemsHTML = total
+    ? items.map((it, i) => {
+      const on = hsVal(day, k.key, i) > 0;
+      return `<button class="hs-item ${on ? 'done' : ''}" type="button" data-hs-item="${k.key}:${i}"
+        aria-pressed="${on}" aria-label="${esc(k.name)} ${esc(it[0])} ${esc(it[1])} ${on ? '완료 취소' : '완료 체크'}">
+        <span class="hs-check" aria-hidden="true">${on ? '✓' : ''}</span>
+        <span class="hs-subj">${esc(it[0])}</span>
+        ${it[1] ? `<span class="hs-qty">${esc(it[1])}</span>` : ''}
+      </button>`;
+    }).join('')
+    : `<div class="hs-empty">
+        <p>오늘의 공부를 기다리고 있어요<br><span>설정에서 공부 내용과 분량을 넣어주세요</span></p>
+        <button class="hs-mini" type="button" data-hs-edit="${k.key}">✏️ 공부 넣기</button>
+      </div>`;
+
+  let foot = '';
+  if (total) {
+    if (conf) {
+      foot = `<span class="hs-state ok">✅ 엄마 확인 완료 <small>${hhmm(hsMomVal(day, k.key) * 1000)}</small></span>`
+        + (me === '엄마' ? `<button class="hs-mini" type="button" data-hs-mom="${k.key}">확인 취소</button>` : '');
+    } else if (all) {
+      foot = me === '엄마'
+        ? `<button class="hs-mom-btn" type="button" data-hs-mom="${k.key}">👩‍👧 엄마 확인 완료</button>`
+        : `<span class="hs-state wait">⏳ 엄마 확인 기다리는 중<small>엄마 기기에서 확인해 주세요</small></span>`;
+    } else {
+      foot = `<span class="hs-state">${done}/${total} 완료 · 다 체크하면 엄마 확인을 받을 수 있어요</span>`;
+    }
+  }
+
+  return `<div class="hs-card ${k.key} ${all ? 'all' : ''} ${conf ? 'conf' : ''}">
+    <div class="hs-head">
+      <span class="avatar hs-avatar">${avatarHTML(k.avatar)}</span>
+      <div class="hs-title">
+        <div class="hs-name">${esc(k.name)} 홈스쿨</div>
+        <div class="hs-sum">${sum}</div>
+      </div>
+      <button class="hs-edit" type="button" data-hs-edit="${k.key}" aria-label="${esc(k.name)} 공부 목록 고치기" title="공부 목록 고치기">✏️</button>
+    </div>
+    ${total ? `<div class="hs-bar"><span style="width:${pct}%"></span></div>` : ''}
+    <div class="hs-items">${itemsHTML}</div>
+    ${foot ? `<div class="hs-foot">${foot}</div>` : ''}
+  </div>`;
+}
+
+function renderHomeSchool() {
+  const wrap = $('hsGrid');
+  if (!wrap) return;
+  const day = dayKey();
+  const me = getMe();
+  wrap.innerHTML = HS_KIDS.map((k) => hsCardHTML(k, day, me)).join('');
+  renderHsCfgState();
+}
+
+function renderHsCfgState() {
+  const el = $('hsCfgState');
+  if (!el) return;
+  const parts = HS_KIDS.filter((k) => hsTotal(k.key) > 0).map((k) => `${k.name} ${hsTotal(k.key)}개`);
+  el.textContent = parts.length ? parts.join(' · ') : '아직 없음';
+}
+
+/* 아이가 완료를 체크 / 취소 */
+function hsToggle(key, i) {
+  const day = dayKey();
+  const k = hsKid(key);
+  const n = hsTotal(key);
+  if (!n || i < 0 || i >= n) return;
+  const r = hsRecWrite(day);
+  const cur = Math.round(Number(r[key][i]) || 0);
+  const on = cur > 0;
+  const sec = Math.floor(now() / 1000);
+  r[key][i] = on ? -sec : sec;
+  saveState();
+  renderHomeSchool();
+  renderCalendar();
+  schedulePublish(60);
+  audio();
+  beep(on ? 620 : 990, on ? 0.12 : 0.13, 0, on ? 'sine' : 'triangle');
+  if (on) return;
+  const el = document.querySelector(`[data-hs-item="${key}:${i}"]`);
+  if (el) {
+    el.classList.add('pop');
+    setTimeout(() => { try { el.classList.remove('pop'); } catch (e) {} }, 800);
+  }
+  if (hsAllDone(day, key)) {
+    cheer();
+    hsSay(getMe() === '엄마'
+      ? `${k.name}, 오늘 공부 다 했어요! 엄마 확인을 눌러 주세요 🎉`
+      : `${k.name}, 오늘 공부 다 했어요! 엄마 확인을 기다려요 🎉`);
+  }
+}
+
+/* 엄마 확인 — 엄마로 정해 둔 기기에서만 누를 수 있어요 */
+function hsMomToggle(key) {
+  const day = dayKey();
+  const k = hsKid(key);
+  const me = getMe();
+  if (me !== '엄마') {
+    beep(520, 0.12);
+    hsSay('엄마 확인은 엄마 기기에서 해 주세요. 위에서 “이 기기에서 쓰는 사람”을 엄마로 고르면 바로 할 수 있어요.');
+    return;
+  }
+  const r = hsRecWrite(day);
+  const cur = hsMomVal(day, key);
+  if (cur > 0) {
+    if (!confirm(`${k.name} 홈스쿨 엄마 확인을 취소할까요?`)) return;
+    r.m[key] = -Math.floor(now() / 1000);
+    saveState();
+    renderHomeSchool();
+    renderCalendar();
+    schedulePublish(0);
+    beep(620, 0.1);
+    hsSay('엄마 확인을 취소했어요. 다시 확인할 수 있어요.');
+    return;
+  }
+  if (!hsAllDone(day, key)) {
+    hsSay(`${k.name} 공부를 모두 체크해야 엄마 확인을 할 수 있어요`);
+    return;
+  }
+  r.m[key] = Math.floor(now() / 1000);
+  saveState();
+  renderHomeSchool();
+  renderCalendar();
+  schedulePublish(0);
+  audio();
+  cheer();
+  if (navigator.vibrate) { try { navigator.vibrate([120, 60, 120]); } catch (e) {} }
+  if (hsDayAll(day)) {
+    celebrate(null, '홈스쿨 다 하고 엄마 확인까지 끝! 달력에 “다 했어요” 도장을 찍었어요 ✅');
+  } else {
+    const rest = HS_KIDS.filter((x) => hsTotal(x.key) > 0 && !hsMomOk(day, x.key)).map((x) => x.name);
+    hsSay(`${k.name} 홈스쿨 엄마 확인 완료! ${rest.length ? rest.join('·') + '도 기다리고 있어요.' : ''}`);
+  }
+}
+
+/* 이 날이 바뀌면 보이던 체크가 새 날 것으로 바뀌게 (1초마다 확인) */
+let hsDayShown = '';
+function hsTick() {
+  if (hsCompact()) saveState();
+  const d = dayKey();
+  if (d === hsDayShown) return;
+  hsDayShown = d;
+  renderToday();
+  renderHomeSchool();
+  renderCalendar();
+}
+
+/* ---------- 공부 목록 넣기/고치기 ---------- */
+let hsDraft = null;
+
+function openHsSheet(kid) {
+  hsDraft = { dowan: [], doeun: [] };
+  HS_KIDS.forEach((k) => { hsDraft[k.key] = hsCfg(k.key).map((it) => it.slice()); });
+  const key = kid === 'doeun' ? 'doeun' : 'dowan';
+  if (!hsDraft[key].length) hsDraft[key].push(['', '']);
+  renderHsSheet();
+  $('hsSheet').hidden = false;
+  setTimeout(() => {
+    const first = $('hsEditRows') && $('hsEditRows').querySelector(`[data-kid="${key}"]`);
+    if (first) { try { first.focus(); } catch (e) {} }
+  }, 140);
+}
+
+function closeHsSheet() {
+  const el = $('hsSheet');
+  if (el) el.hidden = true;
+  hsDraft = null;
+}
+
+function renderHsSheet() {
+  const box = $('hsEditRows');
+  if (!box || !hsDraft) return;
+  box.innerHTML = HS_KIDS.map((k) => {
+    const rows = hsDraft[k.key] || [];
+    const filled = rows.filter((it) => String(it[0] || '').trim()).length;
+    return `<div class="hs-edit-sec ${k.key}">
+      <div class="hs-edit-head">
+        <span class="avatar-mini">${avatarHTML(k.avatar)}</span>
+        <strong>${esc(k.name)} 홈스쿨</strong>
+        <span class="hs-edit-count">${filled}개</span>
+      </div>
+      <div class="hs-edit-list">
+        ${rows.length ? rows.map((it, i) => `
+          <div class="hs-edit-row">
+            <input class="hs-edit-subj" data-kid="${k.key}" data-i="${i}" data-f="0" value="${esc(it[0])}"
+                   placeholder="과목 (예: 플라토)" maxlength="${HS_TEXT_MAX}" aria-label="${esc(k.name)} ${i + 1}번째 과목">
+            <input class="hs-edit-qty" data-kid="${k.key}" data-i="${i}" data-f="1" value="${esc(it[1])}"
+                   placeholder="분량 (예: 16~19쪽)" maxlength="${HS_QTY_MAX}" aria-label="${esc(k.name)} ${i + 1}번째 분량">
+            <button class="hs-edit-del" type="button" data-hs-del="${k.key}:${i}" aria-label="이 줄 지우기">×</button>
+          </div>`).join('') : '<p class="hint">아직 넣은 공부가 없어요. 아래 버튼으로 한 줄 넣어 주세요.</p>'}
+      </div>
+      <button class="hs-edit-add" type="button" data-hs-addrow="${k.key}">＋ ${esc(k.name)} 공부 추가</button>
+    </div>`;
+  }).join('');
+}
+
+function hsDraftSet(el) {
+  if (!hsDraft || !el) return;
+  const key = el.dataset.kid === 'doeun' ? 'doeun' : 'dowan';
+  const i = Number(el.dataset.i);
+  const f = Number(el.dataset.f) === 1 ? 1 : 0;
+  const arr = hsDraft[key];
+  if (!arr || !arr[i]) return;
+  arr[i][f] = String(el.value || '').slice(0, f ? HS_QTY_MAX : HS_TEXT_MAX);
+}
+
+function hsAddRow(key) {
+  if (!hsDraft) return;
+  const arr = hsDraft[key];
+  if (!arr || arr.length >= HS_MAX_ITEMS) { hsSay(`한 아이에 ${HS_MAX_ITEMS}개까지만 넣을 수 있어요`); return; }
+  arr.push(['', '']);
+  renderHsSheet();
+  const box = $('hsEditRows');
+  const inputs = box ? box.querySelectorAll(`[data-kid="${key}"]`) : [];
+  const last = inputs[inputs.length - 2];
+  if (last) { try { last.focus(); } catch (e) {} }
+}
+
+function hsDelRow(key, i) {
+  if (!hsDraft) return;
+  const arr = hsDraft[key];
+  if (!arr) return;
+  arr.splice(i, 1);
+  renderHsSheet();
+  beep(620, 0.08);
+}
+
+function hsSaveSheet() {
+  if (!hsDraft) { closeHsSheet(); return; }
+  const next = { dowan: [], doeun: [] };
+  HS_KIDS.forEach((k) => {
+    (hsDraft[k.key] || []).forEach((it) => {
+      const name = String(it[0] || '').replace(/\s+/g, ' ').trim().slice(0, HS_TEXT_MAX);
+      const qty = String(it[1] || '').replace(/\s+/g, ' ').trim().slice(0, HS_QTY_MAX);
+      if (name) next[k.key].push([name, qty]);
+    });
+    next[k.key] = next[k.key].slice(0, HS_MAX_ITEMS);
+  });
+  const changed = JSON.stringify(hsCfgOf(state.hs.cfg)) !== JSON.stringify(next);
+  state.hs.cfg = next;
+  if (changed) state.hs.at = Math.floor(now() / 1000);
+  const day = dayKey();
+  const r = state.hs.rec[day];
+  if (r) {
+    HS_KIDS.forEach((k) => {
+      if (Array.isArray(r[k.key])) r[k.key] = hsArr(r[k.key]).slice(0, next[k.key].length);
+    });
+  }
+  saveState();
+  renderHomeSchool();
+  renderCalendar();
+  closeHsSheet();
+  if (changed) {
+    schedulePublish(0);
+    audio();
+    beep(1040, 0.1);
+    beep(1320, 0.13, 0.1);
+    hsSay('오늘의 공부를 저장했어요. 아이 화면에도 바로 보여요.');
+  }
+}
+
 /* ============================== 이벤트 ============================== */
 function bindEvents() {
   // 기기 사용자
@@ -1846,20 +2436,37 @@ function bindEvents() {
     beep(920, 0.12);
   });
 
-  // 별 주기
-  $('members').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-star]');
-    if (!b) return;
-    const who = b.dataset.star;
-    const me = getMe();
-    if (!me) { hintWho(); return; }
-    state.stars.ev[ri()] = [who, now()];
-    saveState();
-    renderMembers();
-    schedulePublish(50);
-    beep(1180, 0.14);
-    anim(b, [{ transform: 'scale(1)' }, { transform: 'scale(.9)' }, { transform: 'scale(1)' }], { duration: 220 });
+  // 홈스쿨: 공부 체크 · 엄마 확인 · 공부 넣기
+  $('hsGrid').addEventListener('click', (e) => {
+    const mom = e.target.closest('[data-hs-mom]');
+    if (mom) { hsMomToggle(mom.dataset.hsMom); return; }
+    const edit = e.target.closest('[data-hs-edit]');
+    if (edit) { audio(); openHsSheet(edit.dataset.hsEdit); return; }
+    const item = e.target.closest('[data-hs-item]');
+    if (!item) return;
+    const parts = String(item.dataset.hsItem || '').split(':');
+    hsToggle(parts[0], Number(parts[1]));
   });
+
+  // 홈스쿨 공부 목록 고치기
+  $('hsEditRows').addEventListener('input', (e) => {
+    const el = e.target.closest('[data-kid]');
+    if (el) hsDraftSet(el);
+  });
+  $('hsEditRows').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-hs-del]');
+    if (del) {
+      const parts = String(del.dataset.hsDel || '').split(':');
+      hsDelRow(parts[0], Number(parts[1]));
+      return;
+    }
+    const add = e.target.closest('[data-hs-addrow]');
+    if (add) { audio(); beep(900, 0.08); hsAddRow(add.dataset.hsAddrow); }
+  });
+  $('hsSave').addEventListener('click', hsSaveSheet);
+  document.querySelectorAll('[data-close-hs]').forEach((el) => el.addEventListener('click', closeHsSheet));
+  const hsFromSettings = $('hsOpenFromSettings');
+  if (hsFromSettings) hsFromSettings.addEventListener('click', () => { closeSheet(); openHsSheet('dowan'); });
 
   // 미션
   $('rerollMission').addEventListener('click', () => {
@@ -2629,6 +3236,7 @@ function openSheet() {
   if ($('prepEnd')) $('prepEnd').value = ps.end;
   if ($('prepWeekday')) $('prepWeekday').checked = ps.weekday;
   if ($('syncInfo')) renderSyncInfo();
+  renderHsCfgState();
   $('settingsSheet').hidden = false;
 }
 function closeSheet() { $('settingsSheet').hidden = true; }
@@ -2772,6 +3380,8 @@ function startApp() {
   bedCheck();
   setInterval(prepTick, 1000);              // 등교 준비 시간이면 화면을 바꿔요
   prepTick();
+  setInterval(hsTick, 1000);                // 날이 바뀌면 홈스쿨 체크·달력을 새 날로
+  hsTick();
 }
 
 /* 지금 동기화: 한 번 받아오고(pollOnce) 가족에게 "지금 상태 알려줘"를 보내요 */
