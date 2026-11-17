@@ -28,7 +28,12 @@ const LS = {
   bedLast: 'fd_bed_last',
   roomKey: 'fd_room_key_v2',                      // 비밀번호로 만든 방 이름만 저장 (비밀번호 원문은 저장하지 않음)
   oldRoom: 'fd_room',                             // 예전 버전의 방 코드 자리 (정리용)
-  timer: 'fd_timer_min'
+  timer: 'fd_timer_min',
+  prepOn: 'fd_prep_on',                           // 등교 준비 도우미 켜기/끄기
+  prepStart: 'fd_prep_start',                     // 준비 시작 시각 (기본 07:30)
+  prepEnd: 'fd_prep_end',                         // 출발 시각 (기본 08:10)
+  prepWeekday: 'fd_prep_weekday',                 // 평일만 볼지 (기본 켜짐)
+  prepDismiss: 'fd_prep_dismiss'                  // "잠깐 보기"로 잠시 닫아 둔 때 (그 시간대 끝까지)
 };
 
 const MEMBERS = [
@@ -121,7 +126,20 @@ function avatarHTML(key) {
 
 /* ============================== 상태 ============================== */
 function emptyState() {
-  return { v: 1, chat: {}, reacts: {}, stars: { base: {}, ev: {} }, stamps: {}, missions: {}, cur: null };
+  return {
+    v: 1, chat: {}, reacts: {}, stars: { base: {}, ev: {} }, stamps: {}, missions: {}, cur: null,
+    prep: { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }
+  };
+}
+
+/* 등교 준비: 칸마다 "언제 눌렀는지"를 부호로 담아요 (양수 = 체크, 음수 = 취소, 0 = 아직)
+   같은 칸은 숫자가 더 큰 쪽(|값|)이 이겨서, 다른 기기에서 체크를 풀어도 그대로 따라와요. */
+function prepArr(v) {
+  const out = [0, 0, 0, 0];
+  if (Array.isArray(v)) {
+    for (let i = 0; i < 4; i++) out[i] = Number(v[i]) || 0;
+  }
+  return out;
 }
 
 let state = loadState();
@@ -151,7 +169,10 @@ function normalizeState(s) {
     },
     stamps: s.stamps && typeof s.stamps === 'object' ? s.stamps : {},
     missions: s.missions && typeof s.missions === 'object' ? s.missions : {},
-    cur: Array.isArray(s.cur) ? s.cur : null
+    cur: Array.isArray(s.cur) ? s.cur : null,
+    prep: s.prep && typeof s.prep === 'object'
+      ? { d: typeof s.prep.d === 'string' ? s.prep.d : '', dowan: prepArr(s.prep.dowan), doeun: prepArr(s.prep.doeun) }
+      : { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }
   };
 }
 
@@ -163,7 +184,10 @@ function pruneForStore(s) {
   const out = {
     v: 1,
     chat: {}, reacts: {}, stars: { base: { ...s.stars.base }, ev: {} },
-    stamps: {}, missions: { ...s.missions }, cur: s.cur
+    stamps: {}, missions: { ...s.missions }, cur: s.cur,
+    prep: s.prep
+      ? { d: s.prep.d, dowan: prepArr(s.prep.dowan), doeun: prepArr(s.prep.doeun) }
+      : { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }
   };
   const ids = Object.keys(s.chat).sort((a, b) => s.chat[b][1] - s.chat[a][1]);
   ids.slice(0, 60).forEach((id) => {
@@ -213,6 +237,23 @@ function mergeState(target, incoming) {
   if (inc.cur && (!target.cur || (inc.cur[1] || 0) > (target.cur[1] || 0))) {
     if (!target.cur || target.cur[0] !== inc.cur[0]) changes++;
     target.cur = inc.cur;
+  }
+  // 등교 준비: 더 새로운 날짜가 이기고, 같은 날이면 칸마다 더 최근에 누른 쪽이 이겨요
+  const ip = inc.prep;
+  if (ip && ip.d) {
+    if (!target.prep || !target.prep.d || ip.d > target.prep.d) {
+      target.prep = { d: ip.d, dowan: prepArr(ip.dowan), doeun: prepArr(ip.doeun) };
+      changes++;
+    } else if (ip.d === target.prep.d) {
+      ['dowan', 'doeun'].forEach((k) => {
+        const mine = target.prep[k] || (target.prep[k] = [0, 0, 0, 0]);
+        for (let i = 0; i < 4; i++) {
+          const a = Number(mine[i]) || 0;
+          const b = Number(ip[k] && ip[k][i]) || 0;
+          if (Math.abs(b) > Math.abs(a)) { mine[i] = b; changes++; }
+        }
+      });
+    }
   }
   return changes;
 }
@@ -274,7 +315,10 @@ function wireState(maxBytes) {
     Object.keys(s.stamps).sort().slice(keepPrevMonth ? 0 : -999).forEach((d) => {
       if (keepPrevMonth || d.slice(0, 7) === thisMonth) stamps[d] = s.stamps[d];
     });
-    const out = { v: 1, chat: {}, reacts: {}, stars: { base: s.stars.base, ev: {} }, stamps: stamps, missions: {}, cur: s.cur };
+    const out = {
+      v: 1, chat: {}, reacts: {}, stars: { base: s.stars.base, ev: {} },
+      stamps: stamps, missions: {}, cur: s.cur, prep: s.prep
+    };
     ids.slice(0, keepChat).forEach((id) => {
       out.chat[id] = s.chat[id];
       if (s.reacts[id]) out.reacts[id] = s.reacts[id];
@@ -465,6 +509,7 @@ function renderAll() {
   renderCalendar();
   renderChat();
   pruneCheck();
+  if (prepIsOpen()) renderPrep();          // 다른 기기에서 체크한 것이 와도 바로 보여요
 }
 
 function renderToday() {
@@ -885,6 +930,267 @@ async function geocodeCity(name) {
   return [g.name || name, g.latitude, g.longitude];
 }
 
+/* ============================== 등교·등원 준비 도우미 ============================== */
+/* 아침 준비 시간이 되면 대시보드 대신 이 화면이 전체를 채워요.
+   아이는 자기 탭에서 네 가지를 하나씩 체크하고, 체크는 가족 모두에게 바로 보여요. */
+const PREP_ITEMS = [
+  { n: 1, title: '아침 먹기',   img: './assets/prep-eat.png?v=7' },
+  { n: 2, title: '세수·양치',   img: './assets/prep-wash.png?v=7' },
+  { n: 3, title: '옷 입기',     img: './assets/prep-dress.png?v=7' },
+  { n: 4, title: '가방 챙기기', img: './assets/prep-bag.png?v=7' }
+];
+const PREP_KIDS = [
+  { key: 'dowan', name: '도완', avatar: 'dowan' },
+  { key: 'doeun', name: '도은', avatar: 'doeun' }
+];
+const PREP_GRACE_MIN = 10;      // 출발 시각이 지나도 이만큼은 "출발할 시간이에요"로 보여 줘요
+const PREP_DEFAULT_START = '07:30';
+const PREP_DEFAULT_END = '08:10';
+
+let prepKid = '';               // 지금 고른 아이 탭 ('' 이면 이 기기 사용자로 자동 선택)
+let prepPreview = false;        // ⚙️ 에서 "지금 미리보기"로 연 상태
+const prepCheer = {};           // { 'dowan': 'YYYY-MM-DD' } — 하루에 한 번만 축하 소리
+
+function prepSettings() {
+  return {
+    on: store.get(LS.prepOn, '1') === '1',
+    start: store.get(LS.prepStart, PREP_DEFAULT_START),
+    end: store.get(LS.prepEnd, PREP_DEFAULT_END),
+    weekday: store.get(LS.prepWeekday, '1') === '1'
+  };
+}
+
+function hmToMin(hm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || '').trim());
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]);
+  if (h > 23 || mi > 59) return null;
+  return h * 60 + mi;
+}
+
+function prepClockLabel(hm) {
+  const t = hmToMin(hm);
+  if (t == null) return '';
+  const h = Math.floor(t / 60), mi = t % 60;
+  return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(mi).padStart(2, '0')}`;
+}
+
+/* 지금이 준비 시간대인지 — 시작·끔다음 10분(유예)까지 봐요 */
+function prepWindow(d = new Date()) {
+  const s = prepSettings();
+  const a = hmToMin(s.start), b = hmToMin(s.end);
+  if (a == null || b == null || b <= a) return null;
+  if (s.weekday && (d.getDay() === 0 || d.getDay() === 6)) return null;
+  const cur = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  const grace = b + PREP_GRACE_MIN;
+  return {
+    s, startAt: a, endAt: b, graceEnd: grace, cur,
+    active: cur >= a && cur < grace,
+    departed: cur >= b
+  };
+}
+
+/* 그 시간대 끝(절대 시각) — "엄마가 잠깐 닫아 둔" 시간을 여기까지만 기억해요 */
+function prepWindowEndAt(d = new Date()) {
+  const w = prepWindow(d);
+  if (!w) return 0;
+  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return base.getTime() + w.graceEnd * 60000;
+}
+
+function prepIsOpen() {
+  const ov = $('prepOverlay');
+  return !!(ov && !ov.hidden);
+}
+
+/* 날짜가 바뀌면 네 칸을 새로 시작해요 */
+function prepRollDay(persist) {
+  const today = dayKey();
+  if (state.prep && state.prep.d === today
+    && Array.isArray(state.prep.dowan) && Array.isArray(state.prep.doeun)) return false;
+  state.prep = { d: today, dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] };
+  prepCheer.dowan = '';
+  prepCheer.doeun = '';
+  if (persist) saveState();
+  return true;
+}
+
+function prepArray(kidKey) {
+  prepRollDay(false);
+  const k = kidKey === 'doeun' ? 'doeun' : 'dowan';
+  if (!Array.isArray(state.prep[k])) state.prep[k] = [0, 0, 0, 0];
+  return state.prep[k];
+}
+
+function prepDone(kidKey) {
+  return prepArray(kidKey).filter((v) => Number(v) > 0).length;
+}
+
+function prepKidNow() {
+  if (prepKid === 'dowan' || prepKid === 'doeun') return prepKid;
+  return getMe() === '도은' ? 'doeun' : 'dowan';
+}
+
+function renderPrep() {
+  const ov = $('prepOverlay');
+  if (!ov || ov.hidden) return;
+  prepRollDay(true);
+  const kid = prepKidNow();
+  const tabs = $('prepTabs');
+  if (tabs) {
+    tabs.innerHTML = PREP_KIDS.map((k) => {
+      const done = prepDone(k.key);
+      return `<button class="prep-tab ${kid === k.key ? 'on' : ''} ${done === 4 ? 'done' : ''}"
+        data-prep-kid="${k.key}" role="tab" aria-selected="${kid === k.key}" aria-pressed="${kid === k.key}">
+        <span class="prep-tab-avatar">${avatarHTML(k.avatar)}</span>
+        <span>${esc(k.name)}</span>
+        <span class="prep-tab-count">${done}/4</span>
+      </button>`;
+    }).join('');
+  }
+  const arr = prepArray(kid);
+  const wrap = $('prepCards');
+  if (wrap) {
+    wrap.innerHTML = PREP_ITEMS.map((it, i) => {
+      const on = Number(arr[i]) > 0;
+      return `<button class="prep-card ${on ? 'checked' : ''}" data-prep-item="${i}" data-kid="${kid}" aria-pressed="${on}">
+        <span class="prep-num">${on ? '✓' : it.n}</span>
+        <span class="prep-pic"><img src="${it.img}" alt="${esc(it.title)}" width="320" height="320" loading="lazy" decoding="async" draggable="false"></span>
+        <span class="prep-title">${esc(it.title)}</span>
+        <span class="prep-shine" aria-hidden="true">✨</span>
+      </button>`;
+    }).join('');
+  }
+  const badge = $('prepBadge');
+  if (badge) {
+    const k = PREP_KIDS.find((x) => x.key === kid) || PREP_KIDS[0];
+    const all = prepDone(kid) === 4;
+    badge.textContent = all ? `🎉 ${k.name}, 네 가지 다 했어요! 최고!` : '';
+    badge.hidden = !all;
+  }
+  const tag = $('prepPreviewTag');
+  if (tag) tag.hidden = !prepPreview;
+  prepDrawClock();
+}
+
+/* 시계·남은 시간·진행 바 — 1초마다 다시 그려요 */
+function prepDrawClock() {
+  const ov = $('prepOverlay');
+  if (!ov || ov.hidden) return;
+  const d = new Date();
+  const w = prepWindow(d);
+  const s = prepSettings();
+  const dateEl = $('prepDate');
+  if (dateEl) dateEl.textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${['일', '월', '화', '수', '목', '금', '토'][d.getDay()]}요일`;
+  const ampm = $('prepAmpm'), clock = $('prepClock');
+  if (ampm) ampm.textContent = d.getHours() < 12 ? '오전' : '오후';
+  if (clock) clock.textContent = `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+  const a = hmToMin(s.start), b = hmToMin(s.end);
+  if (a == null || b == null || b <= a) {
+    const left = $('prepLeft');
+    if (left) { left.textContent = '시작·출발 시간을 설정에서 정해 주세요'; left.classList.remove('go'); }
+    const fill0 = $('prepBarFill');
+    if (fill0) fill0.style.width = '6%';
+    return;
+  }
+
+  let cur = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  // 미리보기는 시간대 밖에서도 볼 수 있게, 시작 직전으로 보고 보여 줘요
+  if (prepPreview && !(w && w.active)) cur = a;
+
+  const leftMin = Math.max(0, Math.ceil(b - cur));
+  const departed = cur >= b;
+  const left = $('prepLeft');
+  if (left) {
+    left.textContent = departed ? '출발할 시간이에요! 🎒' : `출발까지 ${leftMin}분 남았어요`;
+    left.classList.toggle('go', departed);
+  }
+
+  const frac = Math.min(1, Math.max(0, (cur - a) / (b - a)));
+  const pct = departed ? 100 : Math.max(6, Math.round(frac * 100));
+  const fill = $('prepBarFill');
+  if (fill) {
+    fill.style.width = pct + '%';
+    fill.classList.toggle('full', departed);
+  }
+  const bar = $('prepBar');
+  if (bar) bar.setAttribute('aria-valuenow', String(pct));
+  const label = $('prepBarLabel');
+  if (label) label.textContent = `출발 ${prepClockLabel(s.end)}`;
+}
+
+function prepOpen() {
+  const ov = $('prepOverlay');
+  if (!ov) return;
+  ov.hidden = false;
+  document.body.classList.add('prep-open');
+  renderPrep();
+}
+
+function prepClose() {
+  const ov = $('prepOverlay');
+  if (ov) ov.hidden = true;
+  document.body.classList.remove('prep-open');
+}
+
+/* "일반 화면 잠깐 보기" — 이 시간대가 끝날 때까지만 닫아 둬요 */
+function prepPeek() {
+  if (prepPreview) { prepPreview = false; prepClose(); return; }
+  store.set(LS.prepDismiss, String(prepWindowEndAt()));
+  prepClose();
+  beep(660, 0.12);
+}
+
+/* 1초마다: 지금 보여야 하나? 보여야 하면 시계도 다시 */
+function prepTick() {
+  prepRollDay(true);
+  const ov = $('prepOverlay');
+  if (!ov) return;
+  const w = prepWindow();
+  const dismissed = Number(store.get(LS.prepDismiss, 0)) > now();
+  const want = prepPreview || !!(w && w.s.on && w.active && !dismissed);
+  if (want && ov.hidden) prepOpen();
+  else if (!want && !ov.hidden) prepClose();
+  if (!ov.hidden) prepDrawClock();
+}
+
+function prepToggleItem(kidKey, i) {
+  const arr = prepArray(kidKey);
+  const on = Number(arr[i]) > 0;
+  arr[i] = on ? -now() : now();          // 양수 = 체크, 음수 = 취소 (누른 시각을 담아요)
+  saveState();
+  audio();
+  beep(on ? 620 : 990, on ? 0.12 : 0.13, 0, on ? 'sine' : 'triangle');
+  renderPrep();
+  if (!on) {
+    const el = $('prepCards') && $('prepCards').querySelector(`[data-prep-item="${i}"]`);
+    if (el) {
+      el.classList.add('pop');
+      setTimeout(() => { try { el.classList.remove('pop'); } catch (e) {} }, 760);
+    }
+    prepCheerIfDone(kidKey);
+  }
+  schedulePublish(60);
+}
+
+function prepCheerIfDone(kidKey) {
+  const k = PREP_KIDS.find((x) => x.key === kidKey) || PREP_KIDS[0];
+  if (prepDone(kidKey) < 4) { prepCheer[kidKey] = ''; return; }
+  const today = dayKey();
+  if (prepCheer[kidKey] === today) return;
+  prepCheer[kidKey] = today;
+  cheer();
+  if (navigator.vibrate) { try { navigator.vibrate([140, 70, 140, 70, 220]); } catch (e) {} }
+  const badge = $('prepBadge');
+  if (badge) {
+    badge.textContent = `🎉 ${k.name}, 네 가지 다 했어요! 최고!`;
+    badge.hidden = false;
+  }
+  const bar = $('prepBar');
+  if (bar) anim(bar, [{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 380 });
+}
+
 /* ============================== 이벤트 ============================== */
 function bindEvents() {
   // 기기 사용자
@@ -1070,6 +1376,52 @@ function bindEvents() {
   // 날씨 도시
   $('weatherCityBtn').addEventListener('click', () => openSheet());
 
+  // 등교 준비 도우미
+  $('prepToggle').addEventListener('change', (e) => {
+    store.set(LS.prepOn, e.target.checked ? '1' : '0');
+    audio(); beep(e.target.checked ? 960 : 620, 0.1);
+    prepTick();
+  });
+  $('prepStart').addEventListener('change', (e) => {
+    const v = hmToMin(e.target.value) != null ? e.target.value : PREP_DEFAULT_START;
+    e.target.value = v;
+    store.set(LS.prepStart, v);
+    prepTick();
+  });
+  $('prepEnd').addEventListener('change', (e) => {
+    const v = hmToMin(e.target.value) != null ? e.target.value : PREP_DEFAULT_END;
+    e.target.value = v;
+    store.set(LS.prepEnd, v);
+    prepTick();
+  });
+  $('prepWeekday').addEventListener('change', (e) => {
+    store.set(LS.prepWeekday, e.target.checked ? '1' : '0');
+    audio(); beep(840, 0.09);
+    prepTick();
+  });
+  $('prepPreviewBtn').addEventListener('click', () => {
+    prepPreview = true;
+    store.set(LS.prepDismiss, '0');
+    audio(); beep(900, 0.1);
+    closeSheet();
+    prepOpen();
+    prepTick();
+  });
+  $('prepPeekTop').addEventListener('click', prepPeek);
+  $('prepPeekBottom').addEventListener('click', prepPeek);
+  $('prepTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-prep-kid]');
+    if (!b) return;
+    prepKid = b.dataset.prepKid === 'doeun' ? 'doeun' : 'dowan';
+    audio(); beep(880, 0.08);
+    renderPrep();
+  });
+  $('prepCards').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-prep-item]');
+    if (!b) return;
+    prepToggleItem(b.dataset.kid === 'doeun' ? 'doeun' : 'dowan', Number(b.dataset.prepItem));
+  });
+
   // 설정
   $('openSettings').addEventListener('click', openSheet);
   document.querySelectorAll('[data-close-sheet]').forEach((el) => el.addEventListener('click', closeSheet));
@@ -1105,7 +1457,8 @@ function bindEvents() {
   $('resetDevice').addEventListener('click', () => {
     if (!confirm('이 기기에 저장된 기록과 선택한 사용자, 기억해 둔 가족 비밀번호까지 지울까요? (가족 공용 기록은 그대로 남아요)')) return;
     suppressSave = true;
-    [LS.state, LS.me, LS.city, LS.city + '_coords', LS.bed, LS.bedTime, LS.bedLast, LS.timer, LS.roomKey].forEach((k) => store.del(k));
+    [LS.state, LS.me, LS.city, LS.city + '_coords', LS.bed, LS.bedTime, LS.bedLast, LS.timer, LS.roomKey,
+      LS.prepOn, LS.prepStart, LS.prepEnd, LS.prepWeekday, LS.prepDismiss].forEach((k) => store.del(k));
     room = '';
     location.replace(location.pathname);   // 잠금 화면으로 돌아갑니다
   });
@@ -1530,6 +1883,11 @@ function openSheet() {
   $('customCityRow').hidden = CITIES.some((c) => c[0] === city);
   const lockState = $('lockState');
   if (lockState) lockState.textContent = room ? '🔒 잠금 켜짐' : '잠김';
+  const ps = prepSettings();
+  if ($('prepToggle')) $('prepToggle').checked = ps.on;
+  if ($('prepStart')) $('prepStart').value = ps.start;
+  if ($('prepEnd')) $('prepEnd').value = ps.end;
+  if ($('prepWeekday')) $('prepWeekday').checked = ps.weekday;
   if ($('syncInfo')) renderSyncInfo();
   $('settingsSheet').hidden = false;
 }
@@ -1670,6 +2028,8 @@ function startApp() {
   setInterval(() => { loadWeather(false); }, 20 * 60 * 1000);
   setInterval(bedCheck, 1000);
   bedCheck();
+  setInterval(prepTick, 1000);              // 등교 준비 시간이면 화면을 바꿔요
+  prepTick();
 }
 
 /* 지금 동기화: 한 번 받아오고(pollOnce) 가족에게 "지금 상태 알려줘"를 보내요 */

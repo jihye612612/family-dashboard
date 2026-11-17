@@ -9,7 +9,7 @@
 <meta name="description" content="우리 가족 기록장 - 가족 미션, 도장판, 채팅, 타이머">
 <title>우리 가족 기록장</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%8F%A1%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body class="locked">
 
@@ -165,6 +165,39 @@
   </div>
 </div>
 
+<!-- 등교·등원 준비 도우미 (설정한 시간에는 이 화면이 대시보드를 덮어요) -->
+<div class="prep" id="prepOverlay" hidden aria-label="등교 준비 도우미">
+  <div class="prep-inner">
+    <div class="prep-topline">
+      <span class="prep-tag" id="prepPreviewTag" hidden>👀 미리 보기</span>
+      <button class="prep-peek" id="prepPeekTop" type="button">일반 화면 잠깐 보기</button>
+    </div>
+
+    <header class="prep-head">
+      <p class="prep-date" id="prepDate">오늘</p>
+      <p class="prep-clock"><span class="prep-ampm" id="prepAmpm">오전</span><strong id="prepClock">7:30</strong></p>
+      <h2 class="prep-left" id="prepLeft">출발까지 40분 남았어요</h2>
+
+      <div class="prep-bar-wrap">
+        <div class="prep-bar" id="prepBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="prep-bar-fill" id="prepBarFill">
+            <span class="prep-bar-buddy"><img src="./assets/prep-bag.png?v=7" alt="" width="30" height="30" draggable="false"></span>
+          </div>
+        </div>
+        <span class="prep-bar-label" id="prepBarLabel">출발 오전 8:10</span>
+      </div>
+    </header>
+
+    <div class="prep-tabs" id="prepTabs" role="tablist" aria-label="누가 준비하나요"></div>
+
+    <div class="prep-cards" id="prepCards"></div>
+
+    <p class="prep-badge" id="prepBadge" role="status" aria-live="polite" hidden></p>
+
+    <button class="prep-peek bottom" id="prepPeekBottom" type="button">일반 화면 잠깐 보기</button>
+  </div>
+</div>
+
 <!-- 사진 크게 보기 -->
 <div class="overlay photo-view" id="photoView" hidden>
   <img id="photoViewImg" alt="사진 크게 보기">
@@ -208,6 +241,20 @@
         <p class="hint">비밀번호를 바꾸려면 이 기기를 잠그고 새 비밀번호를 넣으면 돼요. 그때는 가족 모두 같은 새 비밀번호로 다시 들어와야 해요.</p>
       </div>
 
+      <div class="prep-setting">
+        <label class="switch-row">
+          <span>🎒 등교 준비 도우미</span>
+          <span class="switch"><input type="checkbox" id="prepToggle" checked><span class="slider"></span></span>
+        </label>
+        <div class="row prep-times">
+          <label class="prep-field"><span>시작</span><input type="time" id="prepStart" value="07:30" aria-label="등교 준비 시작 시간"></label>
+          <label class="prep-field"><span>출발</span><input type="time" id="prepEnd" value="08:10" aria-label="출발 시간"></label>
+        </div>
+        <label class="prep-check"><input type="checkbox" id="prepWeekday" checked><span>평일만 (월~금)</span></label>
+        <button class="btn ghost" id="prepPreviewBtn" type="button">👀 지금 미리보기</button>
+        <p class="hint">시간이 되면 대시보드 대신 이 화면이 떠요. 출발 시간이 지나면 10분 더 "출발할 시간이에요"로 보여 줘요.</p>
+      </div>
+
       <div class="sheet-actions">
         <button class="btn ghost" id="soundTest">🔔 소리 테스트</button>
         <button class="btn ghost" id="settingsSyncNow">🔄 지금 동기화</button>
@@ -218,6 +265,6 @@
   </div>
 </div>
 
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
