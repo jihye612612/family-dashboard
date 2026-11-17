@@ -2037,7 +2037,7 @@ function putPhoto(blob) {
 /* 실패 이유를 사용자가 알 수 있는 말로 바꿔요 */
 function putFailText(e, what) {
   if (e && e.status === 429) return '요청이 너무 많아 잠시 막혔어요 (30초 뒤 다시 해 주세요)';
-  if (e && e.status) return what + ' (서버가 ' + e.status + '로 막았어요. 잠시 뒤 다시 해 주세요)';
+  if (e && e.status) return what + ' (서버 응답 ' + e.status + ' · 잠시 뒤 다시 해 주세요)';
   if (e && e.message === 'locked') return '가족 비밀번호를 넣은 뒤에 보낼 수 있어요';
   return what + ' (연결이 잠깐 끊겼어요. 잠시 뒤 다시 해 주세요)';
 }
@@ -2059,7 +2059,10 @@ async function sendPhotoFile(file) {
     blob = await shrinkPhoto(file);
   } catch (e) {
     photoBusyUI(false);
-    photoNote('이 사진은 보낼 수 없어요. JPG · PNG 사진으로 다시 골라 주세요');
+    const heic = /heic|heif/i.test(String(file.type || '') + ' ' + String(file.name || ''));
+    photoNote(heic
+      ? '아이폰 HEIC 사진은 이 브라우저에서 열 수 없어요. 사진 앱에서 JPG로 저장하거나, 설정 › 카메라 › 포맷을 \'높은 호환성\'으로 바꿔 주세요'
+      : '이 사진은 보낼 수 없어요. JPG · PNG 사진으로 다시 골라 주세요');
     return;
   }
   photoNote('사진 올리는 중…');
