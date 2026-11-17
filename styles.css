@@ -482,7 +482,7 @@ body.locked { overflow: hidden; }
 }
 body.prep-open { overflow: hidden; }
 .prep-inner {
-  max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 9px;
+  max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 9px;
   min-height: calc(100dvh - 34px); padding-bottom: 4px;
 }
 .prep-topline { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 26px; }
@@ -564,7 +564,7 @@ body.prep-open { overflow: hidden; }
 }
 .prep-card.checked .prep-num { background: var(--green-deep); color: #fff; }
 .prep-pic { width: 100%; aspect-ratio: 1 / 1; border-radius: 15px; overflow: hidden; background: #FFF8EC; display: block; }
-.prep-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.prep-pic img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(1.07); }
 .prep-title { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; color: var(--ink); }
 .prep-card.checked .prep-title { color: #3F7A46; }
 .prep-shine {
