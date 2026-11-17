@@ -313,7 +313,7 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 .hsm.doeun.conf { background: var(--mint-deep); }
 .hs-marks { display: flex; gap: 2px; justify-content: center; margin-top: 2px; }
 .hs-stamp {
-  position: absolute; left: 2px; right: 2px; top: 14px; bottom: 3px;
+  position: absolute; left: 2px; right: 2px; top: 15px; bottom: 3px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   padding: 2px 1px; font-size: 8px; font-weight: 900; letter-spacing: -0.3px;
   text-align: center; line-height: 1.1; word-break: keep-all;
@@ -322,6 +322,9 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
   box-shadow: 0 1px 2px rgba(70,110,60,.2);
 }
 .hs-stamp em { font-style: normal; font-size: 11px; line-height: 1; }
+/* 미션 도장(동그라미)이 같이 있는 날은 도장 자리를 비워 두고 아래에 한 줄로 */
+.day.has-dots .hs-stamp { top: 27px; font-size: 7.5px; letter-spacing: -0.4px; }
+.day.has-dots .hs-stamp em { display: none; }
 .day.hs-done { background: #F4FBEF; border-color: #B7E3A8; }
 .day.hs-done.today { background: #F2FBD8; border-color: var(--yellow-deep); }
 .day.hs-done .dnum { font-weight: 800; color: #3F7A46; }

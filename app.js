@@ -1096,7 +1096,7 @@ function renderCalendar() {
         : `${done}/${total || done} 체크`;
       return `<span class="hsm ${k.key} ${cls}" title="${esc(k.name)} 홈스쿨 · ${esc(why)}">${esc(k.short)}</span>`;
     }).join('');
-    cells += `<div class="day ${key === today ? 'today' : ''} ${hsAll ? 'hs-done' : ''}">
+    cells += `<div class="day ${key === today ? 'today' : ''} ${hsAll ? 'hs-done' : ''} ${dots ? 'has-dots' : ''}">
       <span class="dnum">${day}</span>
       ${dots ? `<div class="dots">${dots}</div>` : ''}
       ${hsAll ? '<span class="hs-stamp"><em>✅</em>다 했어요</span>' : (chips ? `<div class="hs-marks">${chips}</div>` : '')}
