@@ -912,6 +912,83 @@ function renderCalendar() {
 
 let viewMonth = new Date();
 
+/* ---------- 사진·음성 불러오기 실패 처리 ----------
+   ntfy는 3시간만 파일을 보관하므로, 그 뒤에 실패하면 "만료" 안내가 맞습니다.
+   하지만 3시간이 안 지났는데 모바일 네트워크가 잠깐 끊기거나 ntfy가 429(요청 많음)를
+   돌려줘 한 번 못 불러온 경우까지 만료로 보이면 안 되므로, 먼저 몇 번 다시 불러오고
+   그래도 안 되면 "눌러서 다시 시도" 안내를 보여 줍니다. */
+const MEDIA_RETRY_DELAYS = [1500, 3000];               // 자동으로 다시 불러오는 간격(ms)
+
+function mediaBoxOf(el) {
+  if (!el || !el.classList || !el.closest) return null;
+  if (el.classList.contains('chat-photo')) return el.closest('.photo-link');
+  if (el.classList.contains('chat-voice')) return el.closest('.voice-wrap');
+  return null;
+}
+
+function mediaIsVoice(box) {
+  return !!box && box.classList.contains('voice-wrap');
+}
+
+/* 아직 보관 시간(3시간)이 안 지나서 다시 불러와 볼 가치가 있는지 */
+function mediaStillKept(box) {
+  if (!box || !box.dataset) return false;
+  const ts = Number(box.dataset.ts || 0);
+  if (!ts) return false;                               // 작성 시각을 모르면 예전처럼 만료로 처리
+  const keepHours = mediaIsVoice(box) ? VOICE_KEEP_HOURS : PHOTO_KEEP_HOURS;
+  return now() - ts < keepHours * 3600 * 1000;
+}
+
+function mediaUrlWithTry(src, n) {
+  try {
+    const u = new URL(src, location.href);
+    u.searchParams.set('_r', String(n));               // 실패한 응답이 캐시에 머물지 않게
+    return u.toString();
+  } catch (e) { return src; }
+}
+
+/* 주소를 다시 불러옵니다. countFirst=true면 시도 횟수는 이미 올라가 있는 상태 */
+function mediaReload(box, countFirst) {
+  if (!box) return false;
+  const el = box.querySelector('.chat-photo, .chat-voice');
+  const src = box.dataset.src || '';
+  if (!el || !src) return false;
+  const n = countFirst ? Number(box.dataset.retry || 1) : Number(box.dataset.retry || 0) + 1;
+  box.dataset.retry = String(n);
+  box.classList.remove('retry');
+  const url = mediaUrlWithTry(src, n);
+  if (el.tagName === 'AUDIO') { try { el.load(); } catch (e) {} }
+  el.src = url;
+  return true;
+}
+
+function mediaMarkGone(box) {
+  box.classList.remove('retry');
+  box.classList.add('gone');
+  if (mediaIsVoice(box)) {
+    const el = box.querySelector('.chat-voice');
+    if (el) { el.removeAttribute('src'); try { el.load(); } catch (e) {} }
+  } else {
+    box.removeAttribute('href');
+    box.removeAttribute('data-photo');
+  }
+}
+
+function mediaFailed(box) {
+  if (!box) return;
+  if (!mediaStillKept(box)) { mediaMarkGone(box); return; }   // 3시간이 실제로 지났을 때만 만료 안내
+  const tryNo = Number(box.dataset.retry || 0);
+  if (tryNo < MEDIA_RETRY_DELAYS.length) {
+    box.dataset.retry = String(tryNo + 1);             // 잠깐 뒤 자동으로 한 번 더
+    setTimeout(() => {
+      if (!box.isConnected || box.classList.contains('gone')) return;
+      mediaReload(box, true);
+    }, MEDIA_RETRY_DELAYS[tryNo]);
+  } else {
+    box.classList.add('retry');                        // 자동 재시도로도 안 되면 눌러서 다시
+  }
+}
+
 let chatShowLimit = 40;        // 채팅창에 보여 줄 대화 수 ("더 보기"로 40개씩 늘려요)
 let chatKeepScroll = false;    // 더 보기를 누를 때 보던 위치를 지키려고
 
@@ -951,16 +1028,18 @@ function renderChat() {
     if (photo || voice) {
       const parts = [];
       if (photo) {
-        parts.push(`<a class="photo-link" href="${esc(photo)}" data-photo="${esc(id)}" target="_blank" rel="noopener">
+        parts.push(`<a class="photo-link" href="${esc(photo)}" data-photo="${esc(id)}" data-ts="${esc(ts)}" data-src="${esc(photo)}" target="_blank" rel="noopener">
             <img class="chat-photo" src="${esc(photo)}" alt="${esc(who)}님이 보낸 사진" loading="lazy">
             <span class="photo-gone">만료된 사진이에요 (${PHOTO_KEEP_HOURS}시간 보관)</span>
+            <span class="photo-retry">사진을 불러오지 못했어요 · 눌러서 다시 시도</span>
           </a>`);
       }
       if (voice) {
-        parts.push(`<div class="voice-wrap">
+        parts.push(`<div class="voice-wrap" data-ts="${esc(ts)}" data-src="${esc(voice)}">
             <div class="voice-label">🎙️ 음성메시지 (${voiceSecLabel(voiceSec)})</div>
             <audio class="chat-voice" controls preload="metadata" src="${esc(voice)}"></audio>
             <span class="voice-gone">⏳ ${VOICE_KEEP_HOURS}시간이 지나 만료된 음성메시지예요</span>
+            <span class="voice-retry">음성을 불러오지 못했어요 · 눌러서 다시 시도</span>
           </div>`);
       }
       if (text) parts.push(`<div class="photo-cap">${esc(text)}</div>`);
@@ -1856,27 +1935,17 @@ function bindEvents() {
     input.value = '';                       // 같은 사진을 다시 골라도 동작하도록
     if (file) sendPhotoFile(file);
   });
-  // 사진이 만료됐거나 지워졌을 때 안내로 바꿔 줍니다
+  // 사진·음성이 안 불러와졌을 때: 3시간(보관 시간)이 지난 것만 "만료"로 바꾸고,
+  // 아직 남아 있는 것은 몇 번 다시 불러온 뒤 "눌러서 다시 시도"로 안내합니다.
   $('chatLog').addEventListener('error', (e) => {
-    const el = e.target;
-    if (!el || !el.classList) return;
-    // 음성메시지는 3시간이 지나면 재생 대신 만료 안내로 바뀌어요
-    if (el.classList.contains('chat-voice')) {
-      const wrap = el.closest ? el.closest('.voice-wrap') : null;
-      if (wrap) {
-        wrap.classList.add('gone');
-        el.removeAttribute('src');
-        try { el.load(); } catch (err) {}
-      }
-      return;
-    }
-    const img = el;
-    if (!img.classList.contains('chat-photo')) return;
-    const link = img.closest ? img.closest('.photo-link') : null;
-    if (!link) return;
-    link.classList.add('gone');
-    link.removeAttribute('href');
-    link.removeAttribute('data-photo');
+    mediaFailed(mediaBoxOf(e.target));
+  }, true);
+  // 다시 불러와서 성공하면 재시도 안내를 원래대로 되돌려요
+  $('chatLog').addEventListener('load', (e) => {
+    const box = mediaBoxOf(e.target);
+    if (!box) return;
+    box.classList.remove('retry');
+    box.dataset.retry = '0';
   }, true);
   // 음성메시지 녹음·보내기
   $('voiceBtn').addEventListener('click', toggleVoice);
@@ -1894,6 +1963,12 @@ function bindEvents() {
       return;
     }
     const ph = e.target.closest('[data-photo]');
+    const retryBox = e.target.closest('.photo-link.retry, .voice-wrap.retry');
+    if (retryBox) {
+      e.preventDefault();
+      mediaReload(retryBox, false);      // 만료 전이면 크게 보기 대신 다시 불러와요
+      return;
+    }
     if (ph) {
       e.preventDefault();
       openPhotoView(ph.getAttribute('href'));
