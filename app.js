@@ -1099,7 +1099,7 @@ function renderCalendar() {
     cells += `<div class="day ${key === today ? 'today' : ''} ${hsAll ? 'hs-done' : ''}">
       <span class="dnum">${day}</span>
       ${dots ? `<div class="dots">${dots}</div>` : ''}
-      ${hsAll ? '<span class="hs-stamp">✅ 다 했어요</span>' : (chips ? `<div class="hs-marks">${chips}</div>` : '')}
+      ${hsAll ? '<span class="hs-stamp"><em>✅</em>다 했어요</span>' : (chips ? `<div class="hs-marks">${chips}</div>` : '')}
     </div>`;
   }
   grid.innerHTML = cells;
@@ -2166,7 +2166,7 @@ function hsCardHTML(k, day, me) {
   else sum = `${total}개 중 ${done}개 완료`;
 
   const itemsHTML = total
-    ? items.map((it, i) => {
+    ? `<div class="hs-items">${items.map((it, i) => {
       const on = hsVal(day, k.key, i) > 0;
       return `<button class="hs-item ${on ? 'done' : ''}" type="button" data-hs-item="${k.key}:${i}"
         aria-pressed="${on}" aria-label="${esc(k.name)} ${esc(it[0])} ${esc(it[1])} ${on ? '완료 취소' : '완료 체크'}">
@@ -2174,9 +2174,10 @@ function hsCardHTML(k, day, me) {
         <span class="hs-subj">${esc(it[0])}</span>
         ${it[1] ? `<span class="hs-qty">${esc(it[1])}</span>` : ''}
       </button>`;
-    }).join('')
+    }).join('')}</div>`
     : `<div class="hs-empty">
-        <p>오늘의 공부를 기다리고 있어요<br><span>설정에서 공부 내용과 분량을 넣어주세요</span></p>
+        <p class="hs-empty-main">오늘의 공부를 기다리고 있어요</p>
+        <p class="hs-empty-sub">등록된 공부가 없어요. 과목과 분량을 넣어 주세요</p>
         <button class="hs-mini" type="button" data-hs-edit="${k.key}">✏️ 공부 넣기</button>
       </div>`;
 
@@ -2204,7 +2205,7 @@ function hsCardHTML(k, day, me) {
       <button class="hs-edit" type="button" data-hs-edit="${k.key}" aria-label="${esc(k.name)} 공부 목록 고치기" title="공부 목록 고치기">✏️</button>
     </div>
     ${total ? `<div class="hs-bar"><span style="width:${pct}%"></span></div>` : ''}
-    <div class="hs-items">${itemsHTML}</div>
+    ${itemsHTML}
     ${foot ? `<div class="hs-foot">${foot}</div>` : ''}
   </div>`;
 }
@@ -2292,6 +2293,7 @@ function hsMomToggle(key) {
   cheer();
   if (navigator.vibrate) { try { navigator.vibrate([120, 60, 120]); } catch (e) {} }
   if (hsDayAll(day)) {
+    hsSay('');
     celebrate(null, '홈스쿨 다 하고 엄마 확인까지 끝! 달력에 “다 했어요” 도장을 찍었어요 ✅');
   } else {
     const rest = HS_KIDS.filter((x) => hsTotal(x.key) > 0 && !hsMomOk(day, x.key)).map((x) => x.name);
@@ -2368,6 +2370,9 @@ function hsDraftSet(el) {
   const arr = hsDraft[key];
   if (!arr || !arr[i]) return;
   arr[i][f] = String(el.value || '').slice(0, f ? HS_QTY_MAX : HS_TEXT_MAX);
+  const sec = el.closest('.hs-edit-sec');
+  const badge = sec && sec.querySelector('.hs-edit-count');
+  if (badge) badge.textContent = `${arr.filter((it) => String(it[0] || '').trim()).length}개`;
 }
 
 function hsAddRow(key) {

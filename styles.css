@@ -145,9 +145,10 @@ body {
 .hs-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #CDE8C6, #9FD694); transition: width .5s ease; }
 .hs-items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
 .hs-item {
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 16px 7px 9px; border: 2px solid #F0E4D3; border-radius: 15px; background: #FFFDF8;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 18px 8px 9px; border: 2px solid #F0E4D3; border-radius: 15px; background: #FFFDF8;
   cursor: pointer; font-family: inherit; text-align: center; box-shadow: 0 2px 6px rgba(180,150,120,.07);
+  min-height: 74px;
   transition: transform .12s ease, border-color .16s ease, background .16s ease;
 }
 .hs-item:active { transform: scale(.97); }
@@ -158,7 +159,7 @@ body {
   display: flex; align-items: center; justify-content: center; line-height: 1;
 }
 .hs-item.done .hs-check { border-color: var(--green-deep); background: var(--green-deep); }
-.hs-subj { font-size: 13px; font-weight: 800; letter-spacing: -0.3px; color: var(--ink); line-height: 1.25; word-break: break-word; }
+.hs-subj { font-size: 13px; font-weight: 800; letter-spacing: -0.3px; color: var(--ink); line-height: 1.25; word-break: break-word; padding: 0 12px; }
 .hs-qty {
   font-size: 10.5px; font-weight: 700; color: var(--ink-soft); background: #F4EBDD;
   border-radius: 999px; padding: 2px 8px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
@@ -166,11 +167,11 @@ body {
 .hs-item.done .hs-qty { background: var(--green); color: #3F7A46; }
 .hs-item.pop { animation: supplyPop .8s cubic-bezier(.2,1.2,.4,1); }
 .hs-empty {
-  margin-top: 10px; padding: 16px 12px; border: 1px dashed var(--line); border-radius: 15px;
+  margin-top: 10px; padding: 18px 12px 14px; border: 1px dashed var(--line); border-radius: 15px;
   background: rgba(255,255,255,.72); text-align: center;
 }
-.hs-empty p { margin: 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
-.hs-empty p span { color: var(--muted); font-size: 11.5px; }
+.hs-empty-main { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-soft); line-height: 1.5; }
+.hs-empty-sub { margin: 3px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 .hs-mini {
   margin-top: 9px; border: 1px dashed #E8D9C4; background: #fff; border-radius: 999px;
   padding: 6px 12px; font-size: 12px; font-family: inherit; color: var(--ink-soft); cursor: pointer; font-weight: 700;
@@ -312,12 +313,15 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 .hsm.doeun.conf { background: var(--mint-deep); }
 .hs-marks { display: flex; gap: 2px; justify-content: center; margin-top: 2px; }
 .hs-stamp {
-  position: absolute; left: 2px; right: 2px; bottom: 2px; padding: 2px 1px;
-  font-size: 8px; font-weight: 900; letter-spacing: -0.3px; text-align: center; line-height: 1.15;
-  color: #2F5C31; background: linear-gradient(180deg, #D6F0CB 0%, #B7E3A8 100%);
-  border: 1px solid #8CC97F; border-radius: 7px; transform: rotate(-4deg);
-  box-shadow: 0 1px 2px rgba(70,110,60,.18);
+  position: absolute; left: 2px; right: 2px; top: 14px; bottom: 3px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 2px 1px; font-size: 8px; font-weight: 900; letter-spacing: -0.3px;
+  text-align: center; line-height: 1.1; word-break: keep-all;
+  color: #2F5C31; background: linear-gradient(180deg, #DCF3D2 0%, #B7E3A8 100%);
+  border: 1px solid #8CC97F; border-radius: 8px; transform: rotate(-3deg);
+  box-shadow: 0 1px 2px rgba(70,110,60,.2);
 }
+.hs-stamp em { font-style: normal; font-size: 11px; line-height: 1; }
 .day.hs-done { background: #F4FBEF; border-color: #B7E3A8; }
 .day.hs-done.today { background: #F2FBD8; border-color: var(--yellow-deep); }
 .day.hs-done .dnum { font-weight: 800; color: #3F7A46; }
@@ -854,7 +858,8 @@ body.prep-open { overflow: hidden; }
   .hs-grid { grid-template-columns: 1fr 1fr; }
   .hs-items { grid-template-columns: repeat(3, 1fr); }
   .day { aspect-ratio: 1 / 1.05; }
-  .hs-stamp { font-size: 9px; }
+  .hs-stamp { flex-direction: row; gap: 3px; font-size: 9.5px; top: 15px; }
+  .hs-stamp em { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
