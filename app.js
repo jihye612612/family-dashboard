@@ -2272,8 +2272,8 @@ function hsMomToggle(key) {
     return;
   }
   const r = hsRecWrite(day);
-  const cur = hsMomVal(day, key);
-  if (cur > 0) {
+  const confirmed = hsMomOk(day, key);     // 지금 유효한 엄마 확인인지 (확인 뒤에 다시 체크했으면 새로 받아요)
+  if (confirmed) {
     if (!confirm(`${k.name} 홈스쿨 엄마 확인을 취소할까요?`)) return;
     r.m[key] = -Math.floor(now() / 1000);
     saveState();
