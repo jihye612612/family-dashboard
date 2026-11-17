@@ -369,6 +369,7 @@ async function notifySet(on, opts) {
   notifyOn = want;
   store.set(LS.notifyOn, want ? '1' : '0');
   renderNotifyUI();
+  if (want) swRegister();                        // 휴대폰 알림용 서비스 워커 준비
   if (want && !o.silent) notifySound();          // 켤 때 한 번 들려 줘요
   return notifyOn;
 }
@@ -379,14 +380,36 @@ function notifyInit() {
     notifyOn = false;
     store.set(LS.notifyOn, '0');
   }
+  if (notifyOn) swRegister();
   renderNotifyUI();
 }
 
-/* 화면 위 시스템 알림 (클릭하면 창을 앞으로 + 채팅으로 이동) */
+/* 화면 위 시스템 알림 (클릭하면 창을 앞으로 + 채팅으로 이동)
+   휴대폰(안드로이드 크롬)은 페이지가 만든 알림을 막아서, 서비스 워커가 있으면 그쪽으로 띄워요. */
+let swReg = null;
+
+function swRegister() {
+  if (swReg || !('serviceWorker' in navigator) || !window.isSecureContext) return;
+  try {
+    navigator.serviceWorker.register('./sw.js').then((reg) => { swReg = reg; }).catch(() => {});
+  } catch (e) {}
+}
+
 function notifyPopup(title, body, tag) {
   if (!notifyOn || notifyPermission() !== 'granted') return;
+  const opts = { body: body, tag: tag || 'fd-chat', renotify: true };
+  if (swReg && typeof swReg.showNotification === 'function') {
+    try {
+      swReg.showNotification(title, opts).catch(() => pageNotification(title, opts));
+      return;
+    } catch (e) {}
+  }
+  pageNotification(title, opts);
+}
+
+function pageNotification(title, opts) {
   try {
-    const n = new Notification(title, { body: body, tag: tag || 'fd-chat', renotify: true });
+    const n = new Notification(title, opts);
     n.onclick = () => {
       try { window.focus(); } catch (e) {}
       notifyGoChat();
@@ -2710,6 +2733,13 @@ function restartSync() {
 function boot() {
   bindEvents();
   bindLock();
+
+  if ('serviceWorker' in navigator) {
+    // 알림을 눌러 앱이 앞으로 나오면 채팅 위치로 이동해요
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'fd-focus-chat') notifyGoChat();
+    });
+  }
 
   store.del(LS.oldRoom);                 // 예전 버전의 방 코드는 더 쓰지 않아요
 
