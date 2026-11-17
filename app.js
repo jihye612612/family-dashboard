@@ -2070,7 +2070,11 @@ function hsCodeOf(day, key) {
     const n = hsTotal(key) || arr.length;
     let done = 0;
     for (let i = 0; i < n; i++) if (Math.round(Number(arr[i]) || 0) > 0) done++;
-    const mom = Math.round(Number(r.m && r.m[key]) || 0) > 0;
+    const momRaw = Math.round(Number(r.m && r.m[key]) || 0);
+    // 엄마 확인은 "마지막 체크보다 나중"일 때만 인정해요 (확인 뒤에 다시 체크하면 다시 확인받아요)
+    let last = 0;
+    for (let i = 0; i < n; i++) { const v = Math.round(Number(arr[i]) || 0); if (v > last) last = v; }
+    const mom = momRaw > 0 && momRaw >= last;
     if (!n) return 'x';
     if (!done) return '-';
     if (done < n) return 'p';
