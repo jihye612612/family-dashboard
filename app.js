@@ -2071,8 +2071,8 @@ function hsCodeOf(day, key) {
     let done = 0;
     for (let i = 0; i < n; i++) if (Math.round(Number(arr[i]) || 0) > 0) done++;
     const mom = Math.round(Number(r.m && r.m[key]) || 0) > 0;
-    if (!n) return done || mom ? (mom ? 'c' : 'a') : 'x';
-    if (!done && !mom) return '-';
+    if (!n) return 'x';
+    if (!done) return '-';
     if (done < n) return 'p';
     return mom ? 'c' : 'a';
   }
