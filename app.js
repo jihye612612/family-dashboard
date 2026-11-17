@@ -71,6 +71,24 @@ const CITIES = [
 
 const STICKERS = ['❤️', '🙌', '⭐', '😊', '🍚', '🎉', '👍', '😴'];
 
+/* 준비물 요청: 아이가 고르면 엄마 화면에도 바로 뜨는 목록이에요.
+   요청 하나는 [누가, 무엇을, 언제까지, 요청 시각, 끝난 시각] 다섯 칸으로 담아요.
+   끝난 시각이 0이면 기다리는 중, 양수면 준비 완료, 음수면 지운 요청(되돌리기용 표시)이에요. */
+const SUPPLY_TEXT_MAX = 40;                                  // 한 줄에 적을 수 있는 글자 수
+const SUPPLY_KEEP_DAYS = 7;                                  // 끝난 요청은 이만큼만 남겨요
+const SUPPLY_QUICK = ['색종이', '풀·가위', '색연필', '도화지', '실내화', '체육복', '줄넘기', '물통'];
+const SUPPLY_DUES = [
+  { key: '내일까지', emoji: '🌤️', cls: 'tomorrow' },
+  { key: '이번 주', emoji: '📅', cls: 'week' },
+  { key: '급해요', emoji: '🔥', cls: 'urgent' }
+];
+const SUPPLY_DUE_RANK = { '급해요': 0, '내일까지': 1, '이번 주': 2 };
+const SUPPLY_KIDS = [
+  { name: '도완', key: 'dowan' },
+  { name: '도은', key: 'doeun' }
+];
+const SUPPLY_HINT = '요청을 남기면 엄마 화면에도 바로 떠요. 엄마가 ✅ 를 누르면 “엄마 준비 완료!”로 바뀌어요.';
+
 const WMO = {
   0: ['맑음', '☀️'], 1: ['대체로 맑음', '🌤️'], 2: ['구름 조금', '⛅'], 3: ['흐림', '☁️'],
   45: ['안개', '🌫️'], 48: ['안개', '🌫️'],
@@ -128,7 +146,7 @@ function avatarHTML(key) {
 function emptyState() {
   return {
     v: 1, chat: {}, reacts: {}, stars: { base: {}, ev: {} }, stamps: {}, missions: {}, cur: null,
-    prep: { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }
+    prep: { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }, supplies: {}
   };
 }
 
@@ -172,7 +190,8 @@ function normalizeState(s) {
     cur: Array.isArray(s.cur) ? s.cur : null,
     prep: s.prep && typeof s.prep === 'object'
       ? { d: typeof s.prep.d === 'string' ? s.prep.d : '', dowan: prepArr(s.prep.dowan), doeun: prepArr(s.prep.doeun) }
-      : { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }
+      : { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] },
+    supplies: supplyMap(s.supplies)
   };
 }
 
@@ -185,6 +204,7 @@ function pruneForStore(s) {
     v: 1,
     chat: {}, reacts: {}, stars: { base: { ...s.stars.base }, ev: {} },
     stamps: {}, missions: { ...s.missions }, cur: s.cur,
+    supplies: pruneSupplies(s.supplies),
     prep: s.prep
       ? { d: s.prep.d, dowan: prepArr(s.prep.dowan), doeun: prepArr(s.prep.doeun) }
       : { d: '', dowan: [0, 0, 0, 0], doeun: [0, 0, 0, 0] }
@@ -233,6 +253,17 @@ function mergeState(target, incoming) {
   });
   Object.keys(inc.missions).forEach((id) => {
     if (!target.missions[id]) { target.missions[id] = inc.missions[id]; changes++; }
+  });
+  // 준비물 요청: 없는 요청은 더하고, 이미 있는 요청은 "끝난 시각"이 더 최근(|값|이 큰) 쪽이 이겨요.
+  // (다른 기기에서 준비 완료를 눌러도, 지운 것도 이 규칙 하나로 안전하게 합쳐져요.)
+  if (!target.supplies) target.supplies = {};
+  Object.keys(inc.supplies).forEach((id) => {
+    const row = inc.supplies[id];
+    const mine = target.supplies[id];
+    if (!mine) { target.supplies[id] = row.slice(); changes++; return; }
+    const a = Math.abs(Number(mine[4]) || 0);
+    const b = Math.abs(Number(row[4]) || 0);
+    if (b > a) { mine[4] = row[4]; changes++; }
   });
   if (inc.cur && (!target.cur || (inc.cur[1] || 0) > (target.cur[1] || 0))) {
     if (!target.cur || target.cur[0] !== inc.cur[0]) changes++;
@@ -308,6 +339,7 @@ function wireState(maxBytes) {
   let keepChat = 40;
   let keepEv = 200;
   let keepMissions = 15;
+  let keepSupplies = 30;
   let keepPrevMonth = true;
   const thisMonth = dayKey().slice(0, 7);
   const build = () => {
@@ -315,9 +347,19 @@ function wireState(maxBytes) {
     Object.keys(s.stamps).sort().slice(keepPrevMonth ? 0 : -999).forEach((d) => {
       if (keepPrevMonth || d.slice(0, 7) === thisMonth) stamps[d] = s.stamps[d];
     });
+    const supplies = {};
+    Object.keys(s.supplies || {})
+      .sort((a, b) => {
+        const ra = s.supplies[a], rb = s.supplies[b];
+        const pa = (Number(ra[4]) || 0) === 0 ? 0 : 1;          // 기다리는 요청을 먼저
+        const pb = (Number(rb[4]) || 0) === 0 ? 0 : 1;
+        return pa - pb || (Number(rb[3]) || 0) - (Number(ra[3]) || 0);
+      })
+      .slice(0, keepSupplies)
+      .forEach((id) => { supplies[id] = s.supplies[id]; });
     const out = {
       v: 1, chat: {}, reacts: {}, stars: { base: s.stars.base, ev: {} },
-      stamps: stamps, missions: {}, cur: s.cur, prep: s.prep
+      stamps: stamps, missions: {}, cur: s.cur, prep: s.prep, supplies: supplies
     };
     ids.slice(0, keepChat).forEach((id) => {
       out.chat[id] = s.chat[id];
@@ -339,6 +381,7 @@ function wireState(maxBytes) {
     if (keepChat > 5) keepChat -= 5;
     else if (keepEv > 20) keepEv -= 20;
     else if (keepMissions > 0) keepMissions -= 1;
+    else if (keepSupplies > 5) keepSupplies -= 5;
     else if (keepPrevMonth) keepPrevMonth = false;
     else break;
     payload = build();
@@ -396,11 +439,18 @@ async function handleIncoming(msg) {
     return;
   }
   if (obj.s) {
+    const before = supplyPendingCount();
     const changed = mergeState(state, obj.s);
     if (changed) {
       saveState();
       renderAll();
       flashSync();
+      // 다른 기기에서 새 준비물 요청이 왔으면 조용히 알려 줘요 (4초에 한 번까지만)
+      if (supplyPendingCount() > before && now() - supplyBeepAt > 4000) {
+        supplyBeepAt = now();
+        beep(880, 0.12);
+        beep(1180, 0.16, 0.13);
+      }
     }
   }
 }
@@ -498,6 +548,7 @@ function setMe(name) {
   store.set(LS.me, name);
   renderWho();
   renderMembers();
+  renderSupplies();
 }
 
 /* ============================== 렌더 ============================== */
@@ -508,6 +559,7 @@ function renderAll() {
   renderMission();
   renderCalendar();
   renderChat();
+  renderSupplies();
   pruneCheck();
   if (prepIsOpen()) renderPrep();          // 다른 기기에서 체크한 것이 와도 바로 보여요
 }
@@ -1191,6 +1243,278 @@ function prepCheerIfDone(kidKey) {
   if (bar) anim(bar, [{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 380 });
 }
 
+/* ============================== 준비물 요청 ============================== */
+/* 아이가 빠른 칩이나 직접 입력으로 "이거 필요한데요"를 남기면, 엄마·아이 화면에
+   같은 목록이 바로 떠요. 엄마가 ✅ 를 누르면 아이 화면에도 "엄마 준비 완료!"로 바뀝니다. */
+let supplyWho = '';             // 지금 고른 아이 ('' 이면 이 기기 사용자로 자동)
+let supplyDue = '내일까지';     // 지금 고른 기한
+let supplyBeepAt = 0;           // 새 요청 알림음을 너무 자주 울리지 않게
+
+/* 요청 한 칸을 다섯 칸 배열로 다듬기 (망가진 값이면 null) */
+function supplyRow(v) {
+  if (!Array.isArray(v)) return null;
+  const who = String(v[0] || '').slice(0, 10);
+  const text = String(v[1] || '').replace(/\s+/g, ' ').trim().slice(0, SUPPLY_TEXT_MAX + 20);
+  if (!text) return null;
+  const due = SUPPLY_DUES.some((d) => d.key === v[2]) ? v[2] : '내일까지';
+  return [who, text, due, Number(v[3]) || 0, Number(v[4]) || 0];
+}
+
+function supplyMap(src) {
+  const out = {};
+  if (!src || typeof src !== 'object') return out;
+  Object.keys(src).forEach((id) => {
+    const r = supplyRow(src[id]);
+    if (r) out[id] = r;
+  });
+  return out;
+}
+
+/* 기기에 저장할 만큼만 남기기: 지운·끝난 요청은 일주일만 기억해요 */
+function pruneSupplies(src) {
+  const out = {};
+  const cut = now() - SUPPLY_KEEP_DAYS * 24 * 3600 * 1000;
+  const rows = [];
+  Object.keys(src || {}).forEach((id) => {
+    const r = supplyRow(src[id]);
+    if (!r) return;
+    const done = Number(r[4]) || 0;
+    if (done !== 0 && Math.abs(done) < cut) return;
+    rows.push([id, r]);
+  });
+  rows
+    .sort((a, b) => {
+      const pa = (Number(a[1][4]) || 0) === 0 ? 0 : 1;
+      const pb = (Number(b[1][4]) || 0) === 0 ? 0 : 1;
+      return pa - pb || (Number(b[1][3]) || 0) - (Number(a[1][3]) || 0);
+    })
+    .slice(0, 80)
+    .forEach(([id, r]) => { out[id] = r; });
+  return out;
+}
+
+function supplyPendingCount() {
+  return Object.keys(state.supplies || {})
+    .filter((id) => (Number(state.supplies[id][4]) || 0) === 0).length;
+}
+
+function supplyRoster() {
+  const rows = [];
+  Object.keys(state.supplies || {}).forEach((id) => {
+    const r = supplyRow(state.supplies[id]);
+    if (r) rows.push({ id, r });
+  });
+  return rows;
+}
+
+/* 이 기기 사용자가 아이면 그 아이를, 엄마거나 아직 안 골랐으면 고른 칩을 써요 */
+function supplyMe() {
+  const me = getMe();
+  return me === '도완' || me === '도은' ? me : '';
+}
+function supplyWhoNow() { return supplyWho || supplyMe(); }
+
+function supplyMemberKey(name) {
+  const m = memberByName(name);
+  return m ? m.key : 'dowan';
+}
+
+function supplyDueMeta(key) {
+  return SUPPLY_DUES.find((d) => d.key === key) || SUPPLY_DUES[0];
+}
+
+function supplyDayLabel(ts) {
+  const t = Number(ts) || 0;
+  if (!t) return '';
+  const d = new Date(t);
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  if (dayKey(d) === dayKey()) return `오늘 ${hhmm(t)}`;
+  if (dayKey(d) === dayKey(y)) return `어제 ${hhmm(t)}`;
+  return `${d.getMonth() + 1}/${d.getDate()} ${hhmm(t)}`;
+}
+
+function supplySay(text) {
+  const el = $('supplyHint');
+  if (!el) return;
+  el.textContent = text || SUPPLY_HINT;
+  clearTimeout(supplySay._t);
+  if (text) supplySay._t = setTimeout(() => { el.textContent = SUPPLY_HINT; }, 4000);
+}
+
+/* 누구·빠른 칩·기한 칩만 다시 그리기 (글자를 칠 때마다 목록까지 다시 그리지 않도록) */
+function renderSupplyChips() {
+  const whoWrap = $('supplyWho');
+  if (whoWrap) {
+    const picked = supplyWhoNow();
+    whoWrap.innerHTML = SUPPLY_KIDS.map((k) => `
+      <button class="supply-kid ${picked === k.name ? 'on' : ''}" type="button"
+        data-supply-who="${esc(k.name)}" aria-pressed="${picked === k.name}">
+        <span class="supply-kid-avatar">${avatarHTML(k.key)}</span>${esc(k.name)}
+      </button>`).join('');
+  }
+  const quick = $('supplyQuick');
+  if (quick) {
+    const typed = (($('supplyInput') || {}).value || '');
+    quick.innerHTML = SUPPLY_QUICK.map((q) => `
+      <button class="supply-chip ${typed.includes(q) ? 'picked' : ''}" type="button"
+        data-supply-quick="${esc(q)}">${esc(q)}</button>`).join('');
+  }
+  const dueWrap = $('supplyDue');
+  if (dueWrap) {
+    dueWrap.innerHTML = SUPPLY_DUES.map((d) => `
+      <button class="supply-due-chip ${d.cls} ${supplyDue === d.key ? 'on' : ''}" type="button"
+        data-supply-due="${esc(d.key)}" aria-pressed="${supplyDue === d.key}">${d.emoji} ${esc(d.key)}</button>`).join('');
+  }
+}
+
+function renderSupplies() {
+  const list = $('supplyList');
+  const doneBox = $('supplyDone');
+  if (!list || !doneBox) return;
+  renderSupplyChips();
+
+  const rows = supplyRoster();
+  const pending = rows
+    .filter((x) => (Number(x.r[4]) || 0) === 0)
+    .sort((a, b) => {
+      const ra = SUPPLY_DUE_RANK[a.r[2]] == null ? 1 : SUPPLY_DUE_RANK[a.r[2]];
+      const rb = SUPPLY_DUE_RANK[b.r[2]] == null ? 1 : SUPPLY_DUE_RANK[b.r[2]];
+      return ra - rb || (b.r[3] || 0) - (a.r[3] || 0);
+    });
+  const done = rows
+    .filter((x) => (Number(x.r[4]) || 0) > 0)
+    .sort((a, b) => (b.r[4] || 0) - (a.r[4] || 0));
+
+  const count = $('supplyCount');
+  if (count) {
+    count.textContent = `${pending.length}개 기다려요`;
+    count.hidden = !pending.length;
+  }
+
+  list.innerHTML = pending.length
+    ? pending.map(({ id, r }) => {
+      const due = supplyDueMeta(r[2]);
+      return `<div class="supply-item" data-supply="${esc(id)}">
+        <div class="avatar supply-avatar">${avatarHTML(supplyMemberKey(r[0]))}</div>
+        <div class="supply-body">
+          <div class="supply-line">
+            <span class="supply-name">${esc(r[0] || '우리 가족')}</span>
+            <span class="supply-badge ${due.cls}">${due.emoji} ${esc(r[2])}</span>
+          </div>
+          <div class="supply-text">${esc(r[1])}</div>
+          <div class="supply-time">${supplyDayLabel(r[3])} 요청</div>
+        </div>
+        <div class="supply-acts">
+          <button class="supply-done-btn" type="button" data-supply-done="${esc(id)}">✅ 준비 완료</button>
+          <button class="supply-del" type="button" data-supply-del="${esc(id)}" aria-label="요청 지우기">×</button>
+        </div>
+      </div>`;
+    }).join('')
+    : '<div class="supply-empty">아직 요청이 없어요. 필요한 게 있으면 위에서 골라 엄마한테 말해요 🎒</div>';
+
+  const head = $('supplyDoneHead');
+  if (head) head.hidden = !done.length;
+  doneBox.innerHTML = done.map(({ id, r }) => `
+    <div class="supply-item done" data-supply="${esc(id)}">
+      <div class="avatar supply-avatar">${avatarHTML(supplyMemberKey(r[0]))}</div>
+      <div class="supply-body">
+        <div class="supply-line">
+          <span class="supply-name">${esc(r[0] || '우리 가족')}</span>
+          <span class="supply-badge ok">✅ 엄마 준비 완료!</span>
+        </div>
+        <div class="supply-text">${esc(r[1])}</div>
+        <div class="supply-time">${supplyDayLabel(r[3])} 요청 · ${supplyDayLabel(r[4])} 준비</div>
+      </div>
+      <button class="supply-del" type="button" data-supply-del="${esc(id)}" aria-label="완료된 요청 지우기">×</button>
+    </div>`).join('');
+}
+
+function supplyShakeWho() {
+  const wrap = $('supplyWho');
+  if (wrap) anim(wrap, [
+    { transform: 'translateX(0)' }, { transform: 'translateX(-6px)' },
+    { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }
+  ], { duration: 320 });
+  supplySay('누가 요청하는지 먼저 골라 주세요!');
+}
+
+function supplyAdd() {
+  const input = $('supplyInput');
+  const who = supplyWhoNow();
+  if (!who) { supplyShakeWho(); return; }
+  const text = ((input && input.value) || '').replace(/\s+/g, ' ').trim().slice(0, SUPPLY_TEXT_MAX);
+  if (!text) {
+    supplySay('필요한 준비물을 적어 주세요. 아래 칩을 눌러도 돼요!');
+    if (input) { try { input.focus(); } catch (e) {} }
+    const quick = $('supplyQuick');
+    if (quick) anim(quick, [{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 340 });
+    return;
+  }
+  const id = ri();
+  state.supplies[id] = [who, text, supplyDue, now(), 0];
+  supplyWho = who;
+  if (input) input.value = '';
+  saveState();
+  renderSupplies();
+  schedulePublish(0);
+  audio();
+  beep(1040, 0.1);
+  beep(1320, 0.13, 0.1);
+  supplySay(`✅ ${who}의 요청을 엄마한테 보냈어요!`);
+  const el = list4Id('supplyList', id);
+  if (el) {
+    el.classList.add('pop');
+    setTimeout(() => { try { el.classList.remove('pop'); } catch (e) {} }, 900);
+  }
+}
+
+function list4Id(boxId, id) {
+  const box = $(boxId);
+  if (!box) return null;
+  const all = box.querySelectorAll('[data-supply]');
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].getAttribute('data-supply') === id) return all[i];
+  }
+  return null;
+}
+
+function supplyComplete(id) {
+  const r = state.supplies[id];
+  if (!r || (Number(r[4]) || 0) !== 0) return;
+  r[4] = now();
+  saveState();
+  renderSupplies();
+  schedulePublish(0);
+  audio();
+  beep(1180, 0.12);
+  beep(1480, 0.14, 0.12);
+  if (navigator.vibrate) { try { navigator.vibrate([110, 60, 110]); } catch (e) {} }
+}
+
+function supplyDelete(id) {
+  const r = state.supplies[id];
+  if (!r) return;
+  r[4] = -now();                    // 지운 표시 — 다른 기기에도 퍼져서 목록에서 사라져요
+  saveState();
+  renderSupplies();
+  schedulePublish(0);
+  audio();
+  beep(620, 0.1);
+}
+
+function supplyClearDone() {
+  const rows = supplyRoster().filter((x) => (Number(x.r[4]) || 0) > 0);
+  if (!rows.length) return;
+  const t = now();
+  rows.forEach(({ id }) => { state.supplies[id][4] = -t; });
+  saveState();
+  renderSupplies();
+  schedulePublish(0);
+  audio();
+  beep(700, 0.12);
+}
+
 /* ============================== 이벤트 ============================== */
 function bindEvents() {
   // 기기 사용자
@@ -1421,6 +1745,51 @@ function bindEvents() {
     if (!b) return;
     prepToggleItem(b.dataset.kid === 'doeun' ? 'doeun' : 'dowan', Number(b.dataset.prepItem));
   });
+
+  // 준비물 요청
+  $('supplyWho').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-supply-who]');
+    if (!b) return;
+    supplyWho = b.dataset.supplyWho === '도은' ? '도은' : '도완';
+    audio(); beep(880, 0.08);
+    renderSupplyChips();
+  });
+  $('supplyQuick').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-supply-quick]');
+    if (!b) return;
+    const label = b.dataset.supplyQuick || '';
+    const input = $('supplyInput');
+    if (!input || !label) return;
+    const cur = input.value.trim();
+    if (cur.includes(label)) { audio(); beep(620, 0.08); return; }
+    const join = cur ? `${cur}, ${label}` : label;
+    input.value = (join.length <= SUPPLY_TEXT_MAX ? join : label).slice(0, SUPPLY_TEXT_MAX);
+    audio(); beep(980, 0.08);
+    renderSupplyChips();
+  });
+  $('supplyDue').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-supply-due]');
+    if (!b) return;
+    supplyDue = SUPPLY_DUES.some((d) => d.key === b.dataset.supplyDue) ? b.dataset.supplyDue : '내일까지';
+    audio(); beep(920, 0.08);
+    renderSupplyChips();
+  });
+  $('supplyInput').addEventListener('input', renderSupplyChips);
+  $('supplyInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); supplyAdd(); }
+  });
+  $('supplySend').addEventListener('click', supplyAdd);
+  $('supplyList').addEventListener('click', (e) => {
+    const d = e.target.closest('[data-supply-done]');
+    if (d) { supplyComplete(d.dataset.supplyDone); return; }
+    const x = e.target.closest('[data-supply-del]');
+    if (x) supplyDelete(x.dataset.supplyDel);
+  });
+  $('supplyDone').addEventListener('click', (e) => {
+    const x = e.target.closest('[data-supply-del]');
+    if (x) supplyDelete(x.dataset.supplyDel);
+  });
+  $('supplyClear').addEventListener('click', supplyClearDone);
 
   // 설정
   $('openSettings').addEventListener('click', openSheet);

@@ -9,7 +9,7 @@
 <meta name="description" content="우리 가족 기록장 - 가족 미션, 도장판, 채팅, 타이머">
 <title>우리 가족 기록장</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%F0%9F%8F%A1%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body class="locked">
 
@@ -128,6 +128,36 @@
         <span class="hint">이 기기에서만 울려요</span>
       </div>
     </div>
+  </section>
+
+  <section class="card supply-card" id="supplyCard">
+    <div class="card-h-row">
+      <h2 class="card-h"><span aria-hidden="true">🎒</span> 준비물 요청</h2>
+      <span class="supply-count" id="supplyCount" hidden></span>
+    </div>
+
+    <div class="supply-kids" id="supplyWho" role="group" aria-label="누가 요청하나요"></div>
+
+    <div class="supply-quick" id="supplyQuick" role="group" aria-label="자주 찾는 준비물"></div>
+
+    <div class="row supply-input-row">
+      <input id="supplyInput" placeholder="필요한 준비물 (예: 색종이 한 봉)" maxlength="40" autocomplete="off"
+             aria-label="필요한 준비물">
+    </div>
+
+    <div class="supply-dues" id="supplyDue" role="group" aria-label="언제까지 필요한가요"></div>
+
+    <button class="btn primary supply-send" id="supplySend" type="button">🙋 엄마한테 요청</button>
+
+    <div class="supply-list" id="supplyList"></div>
+
+    <div class="supply-done-head" id="supplyDoneHead" hidden>
+      <span>✅ 엄마가 준비해 줬어요</span>
+      <button class="supply-clear" id="supplyClear" type="button">완료 비우기</button>
+    </div>
+    <div class="supply-done" id="supplyDone"></div>
+
+    <p class="hint" id="supplyHint">요청을 남기면 엄마 화면에도 바로 떠요. 엄마가 ✅ 를 누르면 “엄마 준비 완료!”로 바뀌어요.</p>
   </section>
 
   <section class="card chat-card">
@@ -265,6 +295,6 @@
   </div>
 </div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

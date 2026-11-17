@@ -226,7 +226,93 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #B7E3A8; ou
 .bed-row { margin-top: 10px; }
 .bed-row input { width: 132px; }
 
-/* ---------- chat ---------- */
+/* ---------- 준비물 요청 ---------- */
+.supply-card { background: linear-gradient(158deg, #FFFDF4 0%, #F7F3FF 52%, #FFF5EC 100%); }
+.supply-count {
+  font-size: 11px; background: var(--pink); color: #B4515F; border-radius: 999px;
+  padding: 3px 9px; font-weight: 700; white-space: nowrap;
+}
+.supply-kids { display: flex; gap: 8px; margin: 0 0 10px; }
+.supply-kid {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 13px 5px 6px;
+  border: 2px solid var(--line); border-radius: 999px; background: #fff; cursor: pointer;
+  font-family: inherit; font-size: 14px; color: var(--ink-soft);
+  box-shadow: 0 2px 6px rgba(180,150,120,.07); transition: transform .12s ease, border-color .15s ease, background .15s ease;
+}
+.supply-kid:active { transform: scale(.97); }
+.supply-kid.on { border-color: var(--green-deep); background: #F4FBEF; color: var(--ink); font-weight: 700; transform: translateY(-1px); }
+.supply-kid-avatar { width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%; overflow: hidden; background: #FFF7E9; display: block; }
+.supply-kid-avatar img { width: 100%; height: 100%; display: block; }
+
+.supply-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+.supply-chip {
+  border: 1px dashed #E7D7C3; background: #fff; border-radius: 999px; padding: 6px 11px;
+  font-size: 13px; font-family: inherit; color: var(--ink-soft); cursor: pointer;
+}
+.supply-chip:active { transform: scale(.95); }
+.supply-chip.picked { background: var(--yellow); border-color: var(--yellow-deep); border-style: solid; color: #8A6212; font-weight: 700; }
+.supply-input-row { margin-bottom: 8px; }
+.supply-input-row input { flex: 1; width: 100%; }
+.supply-dues { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.supply-due-chip {
+  border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px;
+  font-size: 12.5px; font-family: inherit; color: var(--ink-soft); cursor: pointer; font-weight: 600;
+}
+.supply-due-chip:active { transform: scale(.95); }
+.supply-due-chip.on.tomorrow { background: var(--yellow); border-color: var(--yellow-deep); color: #8A6212; }
+.supply-due-chip.on.week { background: var(--mint); border-color: var(--mint-deep); color: #3F7A57; }
+.supply-due-chip.on.urgent { background: var(--pink); border-color: var(--pink-deep); color: #B4515F; }
+.supply-send { width: 100%; font-size: 15px; }
+
+.supply-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.supply-empty {
+  text-align: center; color: var(--muted); font-size: 12.5px; line-height: 1.5;
+  padding: 14px 10px; background: rgba(255,255,255,.7); border: 1px dashed var(--line); border-radius: 14px;
+}
+.supply-item {
+  display: flex; align-items: flex-start; gap: 9px; background: #fff;
+  border: 1px solid #F2E6D6; border-radius: 16px; padding: 10px 10px 10px 9px;
+  box-shadow: 0 2px 8px rgba(180,150,120,.08);
+}
+.supply-item.pop { animation: supplyPop .85s cubic-bezier(.2,1.2,.4,1); }
+@keyframes supplyPop {
+  0% { transform: scale(.94); background: #FFF4CC; box-shadow: 0 0 0 3px rgba(242,206,99,.45); }
+  55% { transform: scale(1.015); background: #FFFDF2; }
+  100% { transform: scale(1); background: #fff; }
+}
+.supply-item.done { background: #FBF7F1; border-style: dashed; box-shadow: none; opacity: .78; }
+.supply-avatar { width: 36px; height: 36px; flex: 0 0 36px; box-shadow: 0 1px 3px rgba(0,0,0,.10), 0 0 0 2px #fff; }
+.supply-avatar img { width: 100%; height: 100%; display: block; }
+.supply-body { flex: 1; min-width: 0; }
+.supply-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.supply-name { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.supply-badge { font-size: 10.5px; border-radius: 999px; padding: 2px 8px; font-weight: 700; background: #F3E9DA; color: #7C6C60; white-space: nowrap; }
+.supply-badge.urgent { background: var(--pink); color: #B4515F; }
+.supply-badge.tomorrow { background: #FFF3CC; color: #8A6212; }
+.supply-badge.week { background: var(--mint); color: #3F7A57; }
+.supply-badge.ok { background: var(--green); color: #3F7A46; }
+.supply-text { font-size: 15px; font-weight: 700; margin-top: 3px; word-break: break-word; letter-spacing: -0.2px; line-height: 1.35; }
+.supply-time { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+.supply-acts { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: 0 0 auto; }
+.supply-done-btn {
+  border: 1px solid #B7E3A8; background: #F4FBEF; color: #2F5C31; border-radius: 12px;
+  padding: 7px 9px; font-size: 11.5px; font-weight: 700; font-family: inherit; cursor: pointer; white-space: nowrap;
+}
+.supply-done-btn:active { transform: scale(.94); background: var(--green); }
+.supply-del {
+  border: 0; background: transparent; color: #CBBCAC; font-size: 17px; line-height: 1;
+  width: 26px; height: 24px; padding: 0; cursor: pointer; border-radius: 9px; font-family: inherit;
+}
+.supply-del:active { background: #F5E9DA; color: #B4A292; }
+.supply-done-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 13px 2px 7px; font-size: 11.5px; color: var(--muted); }
+.supply-clear {
+  border: 1px dashed var(--line); background: #fff; border-radius: 999px; padding: 3px 10px;
+  font-size: 11px; color: var(--ink-soft); font-family: inherit; cursor: pointer;
+}
+.supply-clear:active { transform: scale(.95); background: #FFF6E2; }
+.supply-done { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---------- 채팅 ---------- */
 .sync-now {
   border: 1px solid var(--line); background: #fff; width: 32px; height: 32px; border-radius: 50%;
   font-size: 15px; line-height: 1; color: var(--ink-soft); cursor: pointer; font-family: inherit;
@@ -600,6 +686,8 @@ body.prep-open { overflow: hidden; }
   .member .avatar { width: 56px; height: 56px; }
   .timer-display { font-size: 40px; }
   .app { padding: 14px 12px 34px; }
+  .supply-done-btn { padding: 6px 7px; font-size: 11px; }
+  .supply-text { font-size: 14px; }
 }
 @media (min-width: 620px) {
   .prep-cards { grid-template-columns: repeat(4, 1fr); }
