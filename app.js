@@ -96,7 +96,7 @@ const SUPPLY_HINT = '요청을 남기면 엄마 화면에도 바로 떠요. 엄�
 /* 홈스쿨: 아이마다 오늘의 공부(과목 + 분량)를 정해 두고, 아이가 하나씩 완료를 체크해요.
    그날 공부를 모두 체크하면 엄마 확인 버튼이 열리고, 엄마가 확인하면 달력에 “다 했어요”가 찍혀요. */
 const HS_KIDS = [
-  { key: 'dowan', name: '도완', avatar: 'dowan', short: '도' },
+  { key: 'dowan', name: '도완', avatar: 'dowan', short: '완' },
   { key: 'doeun', name: '도은', avatar: 'doeun', short: '은' }
 ];
 const HS_MAX_ITEMS = 8;          // 한 아이가 하루에 넣을 수 있는 공부 수
